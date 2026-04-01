@@ -1,0 +1,12 @@
+# Ignore Node Modules (Huge files)
+node_modules/
+hcms-frontend/node_modules/
+hcms-backend/node_modules/
+
+# Ignore Environment Variables (Secret Passwords)
+.env
+hcms-backend/.env
+hcms-frontend/.env
+
+# Ignore Mac system files
+.DS_Store

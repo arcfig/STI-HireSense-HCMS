@@ -1,0 +1,55 @@
+/* App.css - Main UI Styles */
+
+body {
+  background-color: #f8fafc; /* The light gray background from the mockup */
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Sidebar Styling */
+.sidebar {
+  background-color: #1e293b; /* Dark navy color */
+  min-height: 100vh;
+  color: white;
+  padding-top: 20px;
+}
+
+.sidebar-brand {
+  font-size: 1.25rem;
+  font-weight: bold;
+  padding: 15px 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #334155;
+}
+
+.nav-link {
+  color: #cbd5e1 !important;
+  padding: 12px 20px;
+  margin: 5px 15px;
+  border-radius: 5px;
+  transition: all 0.3s;
+}
+
+.nav-link:hover {
+  background-color: #334155;
+  color: white !important;
+}
+
+.nav-link.active {
+  background-color: #3b82f6; /* The blue active state */
+  color: white !important;
+}
+
+/* Main Content Area */
+.main-content {
+  padding: 40px;
+}
+
+/* Polished Cards */
+.ui-card {
+  background: white;
+  border-radius: 8px;
+  border: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  margin-bottom: 30px;
+}
