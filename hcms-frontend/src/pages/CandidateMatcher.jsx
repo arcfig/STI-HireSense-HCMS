@@ -85,12 +85,19 @@ function CandidateMatcher() {
 
                     {/* Faculty Details */}
                     <div className="col-md-4 ps-4">
-                      <h4 className="fw-bold text-dark mb-1">{faculty.firstName} {faculty.lastName}</h4>
+                      {/* CHANGED: We now just use faculty.name since it's aggregated */}
+                      <h4 className="fw-bold text-dark mb-1">{faculty.name}</h4>
                       <p className="text-muted fw-semibold mb-2">{faculty.department}</p>
                       <div className="d-flex flex-wrap gap-1">
-                        {faculty.tags.map((tag, i) => (
-                          <span key={i} className="badge bg-light text-dark border border-secondary-subtle">{tag}</span>
-                        ))}
+                        {faculty.skills.map((tag, i) => {
+                          // Bonus: Show their star rating next to the tag if they have one!
+                          const rating = faculty.skillRatings && faculty.skillRatings[tag];
+                          return (
+                            <span key={i} className="badge bg-light text-dark border border-secondary-subtle">
+                              {tag} {rating ? <span className="text-warning ms-1"><i className="bi bi-star-fill"></i> {rating}</span> : ''}
+                            </span>
+                          );
+                        })}
                       </div>
                     </div>
 

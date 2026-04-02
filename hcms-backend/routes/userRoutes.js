@@ -1,9 +1,10 @@
 const express = require('express');
 const User = require('../models/User');
 const router = express.Router();
+const { requireHR } = require('../middleware/authMiddleware');
 
 // ROUTE 1: Get all users (Hide the passwords!)
-router.get('/', async (req, res) => {
+router.get('/', requireHR, async (req, res) => {
   try {
     const users = await User.find({}, '-passwordHash').sort({ createdAt: -1 });
     res.status(200).json(users);
@@ -62,6 +63,31 @@ router.put('/:id/skills', async (req, res) => {
   } catch (error) {
     console.error("Error saving skills:", error);
     res.status(500).json({ error: "Failed to save skill ratings." });
+  }
+});
+
+// ROUTE 5: Update a user's account details (Username, Email, Phone)
+router.put('/:id/profile', async (req, res) => {
+  try {
+    const { username, email, phoneNumber } = req.body;
+    
+    // Check if they are trying to change to a username that someone else already took
+    const existingUser = await User.findOne({ username });
+    if (existingUser && existingUser._id.toString() !== req.params.id) {
+      return res.status(400).json({ error: "That username is already taken." });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id, 
+      { username, email, phoneNumber }, 
+      { returnDocument: 'after' }
+    ).select('-passwordHash');
+    
+    if (!updatedUser) return res.status(404).json({ error: "User not found." });
+
+    res.status(200).json({ message: "Profile updated successfully!", user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update profile details." });
   }
 });
 module.exports = router;

@@ -10,6 +10,13 @@ function MyProfile({ user }) {
   const [ratings, setRatings] = useState(user?.skillRatings || {});
   const [ratingMessage, setRatingMessage] = useState('');
 
+  const [profileData, setProfileData] = useState({
+    username: user?.username || '',
+    email: user?.email || '',
+    phoneNumber: user?.phoneNumber || ''
+  });
+  const [profileMessage, setProfileMessage] = useState({ text: '', type: '' });
+
   // 1. Fetch the user's approved documents to find their AI skills
   useEffect(() => {
     const fetchMySkills = async () => {
@@ -98,6 +105,37 @@ function MyProfile({ user }) {
     }
   };
 
+  const handleProfileChange = (e) => {
+    setProfileData({ ...profileData, [e.target.name]: e.target.value });
+  };
+
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    setProfileMessage({ text: '', type: '' });
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/${user.id || user._id}/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData)
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setProfileMessage({ text: "Profile details updated! Please log in again to see changes.", type: "success" });
+        // Update local storage so the UI doesn't break
+        localStorage.setItem('hireSenseUser', JSON.stringify(data.user));
+        setTimeout(() => setProfileMessage({ text: '', type: '' }), 4000);
+      } else {
+        setProfileMessage({ text: data.error || "Failed to update profile.", type: "danger" });
+      }
+    } catch (error) {
+      setProfileMessage({ text: "Server error.", type: "danger" });
+    }
+  };
+
+
+
   return (
     <div>
       <div className="mb-4">
@@ -113,18 +151,44 @@ function MyProfile({ user }) {
             <h5 className="fw-bold text-secondary mb-4 border-bottom pb-2">
               <i className="bi bi-person-badge text-primary me-2"></i> Account Details
             </h5>
+            
             <div className="mb-3">
               <label className="text-muted small fw-bold text-uppercase">Full Name</label>
               <p className="fs-5 text-dark fw-semibold mb-0">{user?.name}</p>
             </div>
-            <div className="mb-4">
-              <label className="text-muted small fw-bold text-uppercase">System Username</label>
-              <p className="fs-6 text-dark mb-0">{user?.username}</p>
-            </div>
+
+            {profileMessage.text && (
+              <div className={`alert alert-${profileMessage.type} py-2 small border-0 shadow-sm`}>
+                {profileMessage.text}
+              </div>
+            )}
+
+            <form onSubmit={handleProfileSubmit}>
+              <div className="mb-3">
+                <label className="text-muted small fw-bold text-uppercase">System Username</label>
+                <input type="text" className="form-control bg-light" name="username" value={profileData.username} onChange={handleProfileChange} required />
+              </div>
+              
+              <div className="mb-3">
+                <label className="text-muted small fw-bold text-uppercase">Email Address (For 2FA)</label>
+                <input type="email" className="form-control bg-light" name="email" value={profileData.email} onChange={handleProfileChange} placeholder="e.g., faculty@sti.edu" />
+              </div>
+
+              <div className="mb-4">
+                <label className="text-muted small fw-bold text-uppercase">SMS Number (For 2FA)</label>
+                <input type="text" className="form-control bg-light" name="phoneNumber" value={profileData.phoneNumber} onChange={handleProfileChange} placeholder="e.g., 09123456789" />
+              </div>
+
+              <button type="submit" className="btn btn-outline-primary btn-sm w-100 fw-bold shadow-sm mb-4">
+                <i className="bi bi-save me-2"></i> Save Profile Details
+              </button>
+            </form>
+
             <div className="mb-4">
               <label className="text-muted small fw-bold text-uppercase">Access Level</label>
               <div><span className={`badge ${user?.role === 'hr' ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase`}>{user?.role}</span></div>
             </div>
+
             <div className="mt-auto pt-4 border-top">
               <button onClick={handleLogout} className="btn btn-outline-danger fw-bold w-100 shadow-sm"><i className="bi bi-box-arrow-right me-2"></i> Secure Logout</button>
             </div>

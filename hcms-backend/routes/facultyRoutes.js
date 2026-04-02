@@ -4,6 +4,8 @@ const express = require('express');
 const router = express.Router();
 const Faculty = require('../models/Faculty'); // Pulls in your blueprint
 const { cloudinary, upload } = require('../config/cloudinary');
+const User = require('../models/User'); // <-- Add this
+const bcrypt = require('bcryptjs');     // <-- Add this
 
 // --------------------------------------------------------
 // ROUTE 2: AI Document Extraction (Auto-Fill)
@@ -99,6 +101,44 @@ router.post('/add', upload.single('document'), async (req, res) => {
     const tagsArray = JSON.parse(aiText);
 
     const finalStatus = (uploaderRole === 'hr' && autoApprove === 'true') ? 'approved' : 'pending';
+
+
+   // --- FIXED: SHADOW PROVISIONING (Auto-Create Account) ---
+    const fullName = `${firstName} ${lastName}`;
+    
+    // Case-insensitive search to see if this user already exists
+    const existingUser = await User.findOne({ name: { $regex: new RegExp(`^${fullName}$`, 'i') } });
+    
+    if (!existingUser) {
+      // Create a default username in ALL LOWERCASE: e.g., "henry.garcia"
+      const baseUsername = `${firstName.toLowerCase().replace(/\s+/g, '')}.${lastName.toLowerCase().replace(/\s+/g, '')}`;
+      
+      // Ensure the username is unique
+      let uniqueUsername = baseUsername;
+      let counter = 1;
+      while (await User.findOne({ username: uniqueUsername })) {
+        uniqueUsername = `${baseUsername}${counter}`;
+        counter++;
+      }
+
+      // Set the default password and hash it
+      const defaultPassword = "STI_password123";
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+      // Save the brand new account
+      const newUser = new User({
+        name: fullName,
+        username: uniqueUsername,
+        passwordHash: hashedPassword,
+        role: 'faculty'
+      });
+      await newUser.save();
+      console.log(`Auto-created account for ${fullName} with username: ${uniqueUsername}`);
+    }
+    // ------------------------------------------------------
+    // ------------------------------------------------------
+
+    // ... [Keep your existing finalStatus and new Faculty.save() logic below this] ...
     // 3. Save everything to MongoDB
     const newFaculty = new Faculty({
       firstName,
@@ -202,51 +242,83 @@ router.put('/edit/:id', async (req, res) => {
 // --------------------------------------------------------
 // ROUTE: AI Candidate Matcher
 // --------------------------------------------------------
+// --------------------------------------------------------
+// ROUTE: AI Candidate Matcher (Aggregated by User)
+// --------------------------------------------------------
 router.post('/match', async (req, res) => {
   try {
     const { requirements } = req.body;
     if (!requirements) return res.status(400).json({ error: "Please provide job requirements." });
 
-    // 1. Fetch only APPROVED faculty members
-    const candidates = await Faculty.find({ status: 'approved' });
-    if (candidates.length === 0) return res.status(404).json({ error: "No approved candidates in the database." });
+    // 1. Fetch BOTH the approved documents AND the User accounts (for ratings)
+    const User = require('../models/User'); // Ensure we can access the User model
+    const [candidates, users] = await Promise.all([
+      Faculty.find({ status: 'approved' }),
+      User.find({}, '-passwordHash')
+    ]);
 
-    // 2. Format the database into a clean list for the AI to read
-    const candidateData = candidates.map(c => ({
-      id: c._id.toString(),
-      name: `${c.firstName} ${c.lastName}`,
-      department: c.department,
-      skills: c.tags.join(', '),
-      documents: c.documentTitle
-    }));
+    if (candidates.length === 0) return res.status(404).json({ error: "No approved candidates found." });
 
-    // 3. The Prompt Architecture
+    // 2. Group all documents by the person's name (Case-Insensitive)
+    const groupedProfiles = candidates.reduce((acc, doc) => {
+      const nameKey = `${doc.firstName} ${doc.lastName}`.toUpperCase();
+      
+      if (!acc[nameKey]) {
+        acc[nameKey] = {
+          id: nameKey, // Use the uppercase name as the unique ID for the AI
+          name: `${doc.firstName} ${doc.lastName}`,
+          department: doc.department,
+          tags: new Set(),
+          documents: []
+        };
+      }
+      
+      // Combine all their tags and document titles
+      doc.tags.forEach(tag => acc[nameKey].tags.add(tag));
+      acc[nameKey].documents.push(doc.documentTitle);
+      
+      return acc;
+    }, {});
+
+    // 3. Attach their 1-5 Star Ratings and format for the AI
+    const candidateData = Object.values(groupedProfiles).map(profile => {
+      const matchedUser = users.find(u => u.name.toLowerCase() === profile.name.toLowerCase());
+      return {
+        id: profile.id,
+        name: profile.name,
+        department: profile.department,
+        skills: Array.from(profile.tags),
+        skillRatings: matchedUser?.skillRatings || {}, // Feed the 1-5 star ratings to Gemini!
+        documents: profile.documents
+      };
+    });
+
+    // 4. The Upgraded Prompt Architecture
     const prompt = `You are an expert HR Candidate Matching AI.
     The HR Department needs a candidate with these requirements: "${requirements}"
     
-    Here is the current pool of verified faculty candidates:
+    Here is the current pool of aggregated faculty profiles (including their 1-5 star self-ratings for specific skills):
     ${JSON.stringify(candidateData)}
 
-    Analyze the candidates' skills and documents against the requirements. Rank the best matches.
+    Analyze the candidates' overall skills, ratings, and documents against the requirements. Rank the best matches.
     Return ONLY a raw JSON array of objects (no markdown, no backticks).
     Format exactly like this:
-    [{"id": "the_candidate_id", "score": 85, "reason": "1-2 short sentences explaining why they match."}]`;
+    [{"id": "THE_ID_STRING", "score": 85, "reason": "1-2 short sentences explaining why their overall profile matches."}]`;
 
-    // 4. Ask Gemini to evaluate them
+    // 5. Ask Gemini to evaluate them
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const result = await model.generateContent(prompt);
     
     let aiText = result.response.text().trim();
     aiText = aiText.replace(/```json/gi, '').replace(/```/gi, '').trim();
-    
     const matchResults = JSON.parse(aiText);
     
-    // 5. Merge the AI's scores/reasons back with the real database profiles
+    // 6. Merge the AI's results back with the aggregated profile data
     const finalMatches = matchResults.map(match => {
-      const faculty = candidates.find(c => c._id.toString() === match.id);
-      if (!faculty) return null;
+      const profile = candidateData.find(c => c.id === match.id);
+      if (!profile) return null;
       return { 
-        ...faculty.toObject(), 
+        ...profile, 
         matchScore: match.score, 
         matchReason: match.reason 
       };
