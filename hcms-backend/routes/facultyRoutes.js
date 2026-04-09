@@ -553,43 +553,53 @@ router.get('/seed-subjects', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// TEMPORARY SEED ROUTE: Auto-populate Defense Accounts
+// TEMPORARY SEED ROUTE: Clean Slate Defense Accounts
 // --------------------------------------------------------
 router.get('/seed-users', async (req, res) => {
   try {
     const bcrypt = require('bcryptjs');
-    const defaultPassword = "STI_password123";
-    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
 
-    // Define the exact accounts required for the Capstone demonstration
+    // 1. HARD WIPE: Eradicate all existing users
+    await User.deleteMany({});
+
+    // 2. Prepare distinct hashed passwords
+    const defaultHash = await bcrypt.hash("password123", 10);
+    const adminHash = await bcrypt.hash("admin123", 10);
+
+    // 3. Define the exact accounts requested
     const defenseUsers = [
-      { name: "System Admin", username: "admin.user", role: "admin" },
-      { name: "Academic Director", username: "acad.head", role: "academic_head" },
-      { name: "Program Coordinator", username: "prog.head", role: "program_head" },
-      { name: "Euencis Palmones", username: "euencis.palmones", role: "faculty" }
+      { name: "Faculty Demo", username: "faculty.demo", role: "faculty", passwordHash: defaultHash },
+      { name: "Academic Head", username: "acad.head", role: "academic_head", passwordHash: defaultHash },
+      { name: "Program Head", username: "prog.head", role: "program_head", passwordHash: defaultHash },
+      { name: "System Admin", username: "admin.user", role: "admin", passwordHash: adminHash }
     ];
 
-    // Upsert logic: Updates the account if it exists, creates it if it does not.
-    for (const u of defenseUsers) {
-      await User.updateOne(
-        { username: u.username },
-        { 
-          $set: { 
-            name: u.name, 
-            role: u.role, 
-            passwordHash: hashedPassword 
-          } 
-        },
-        { upsert: true }
-      );
-    }
+    // 4. Inject the clean slate users
+    await User.insertMany(defenseUsers);
 
     res.status(200).json({ 
-      message: "SUCCESS: Core defense accounts have been seeded into MongoDB. You may now log in." 
+      message: "SUCCESS: Database users wiped and strictly reset to the 4 requested accounts." 
     });
   } catch (error) {
     console.error("User Seeding Error:", error);
-    res.status(500).json({ error: "Failed to seed defense accounts." });
+    res.status(500).json({ error: "Failed to reset defense accounts." });
+  }
+});
+
+// --------------------------------------------------------
+// TEMPORARY ROUTE: Nuclear Wipe of Faculty Data
+// --------------------------------------------------------
+router.get('/wipe-faculty', async (req, res) => {
+  try {
+    // Drops the collection to clear all extracted profiles and ghost indexes
+    try { await Faculty.collection.drop(); } catch (e) {} 
+    
+    res.status(200).json({ 
+      message: "SUCCESS: Faculty directory is now completely empty. Ready for defense testing." 
+    });
+  } catch (error) {
+    console.error("Faculty Wipe Error:", error);
+    res.status(500).json({ error: "Failed to wipe faculty data." });
   }
 });
 module.exports = router;

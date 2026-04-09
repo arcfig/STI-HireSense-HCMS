@@ -215,8 +215,8 @@ function Login({ onLogin }) {
                     <input type="text" className="form-control" name="department" value={credentials.department} onChange={handleChange} placeholder="e.g., Information Technology" required />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label small fw-bold text-muted">Email (For 2FA)</label>
-                    <input type="email" className="form-control" name="email" value={credentials.email} onChange={handleChange} required />
+                    <label className="form-label small fw-bold text-muted">Email (Optional)</label>
+                    <input type="email" className="form-control" name="email" value={credentials.email} onChange={handleChange} />
                   </div>
                   <div className="col-md-6">
                     <label className="form-label small fw-bold text-muted">Phone Number</label>
@@ -226,16 +226,50 @@ function Login({ onLogin }) {
               )}
 
               {/* Password (Full width on Login, Half width on Register) */}
-              <div className={view === 'register' ? "col-md-6" : "col-12 position-relative"}>
+              <div className={view === 'register' ? "col-md-6" : "col-12"}>
                 <label className="form-label small fw-bold text-muted text-uppercase">Password</label>
-                <input type={showPassword ? "text" : "password"} className="form-control" name="password" value={credentials.password} onChange={handleChange} required />
+                <div className="d-flex gap-2">
+                  <input 
+                    type={showPassword ? "text" : "password"} 
+                    className="form-control" 
+                    name="password" 
+                    value={credentials.password} 
+                    onChange={handleChange} 
+                    required 
+                  />
+                  <button 
+                    type="button" 
+                    className="btn btn-outline-secondary d-flex align-items-center justify-content-center px-3" 
+                    onClick={() => setShowPassword(!showPassword)}
+                    title={showPassword ? "Hide Password" : "Show Password"}
+                  >
+                    <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                  </button>
+                </div>
               </div>
 
               {/* Confirm Password (Register Only) */}
               {view === 'register' && (
                 <div className="col-md-6">
                   <label className="form-label small fw-bold text-muted text-uppercase">Confirm Password</label>
-                  <input type={showPassword ? "text" : "password"} className="form-control" name="confirmPassword" value={credentials.confirmPassword} onChange={handleChange} required />
+                  <div className="d-flex gap-2">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      className="form-control" 
+                      name="confirmPassword" 
+                      value={credentials.confirmPassword} 
+                      onChange={handleChange} 
+                      required 
+                    />
+                    <button 
+                      type="button" 
+                      className="btn btn-outline-secondary d-flex align-items-center justify-content-center px-3" 
+                      onClick={() => setShowPassword(!showPassword)}
+                      title={showPassword ? "Hide Password" : "Show Password"}
+                    >
+                      <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                    </button>
+                  </div>
                 </div>
               )}
 
