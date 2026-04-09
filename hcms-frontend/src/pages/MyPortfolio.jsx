@@ -1,23 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
-const MyPortfolio = () => {
+const MyPortfolio = ({ user }) => {
   // 1. State Management
   const [facultyData, setFacultyData] = useState(null);
   const [userDocuments, setUserDocuments] = useState([]); // Array to hold all credentials
   const [loading, setLoading] = useState(true);
   const [previewDoc, setPreviewDoc] = useState({ isOpen: false, url: '', title: '' });
 
-  // 2. Fetch Data
+// 2. Fetch Data
   useEffect(() => {
     const fetchPortfolio = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/faculty/approved');
         const data = await response.json();
         
-        // Retrieve the logged-in user's identifier from local storage.
-        // Replace 'username' or 'name' with the exact key established during your login process.
-        const storedIdentity = localStorage.getItem('name') || localStorage.getItem('username');
+        // FIX: Retrieve identity from the user prop, fallback to parsed local storage
+        let storedIdentity = user?.name;
+        if (!storedIdentity) {
+          const localUser = JSON.parse(localStorage.getItem('hireSenseUser'));
+          storedIdentity = localUser?.name;
+        }
 
         if (storedIdentity && data && data.length > 0) {
           // Filter the global document array against the logged-in user's identity
@@ -25,13 +28,12 @@ const MyPortfolio = () => {
             const docFullName = `${doc.firstName} ${doc.lastName}`.toLowerCase().replace(/\s+/g, '');
             const targetIdentity = storedIdentity.toLowerCase().replace(/\s+/g, '');
             
-            // Evaluates matches based on either full name or explicitly saved username
-            return docFullName === targetIdentity || doc.username === storedIdentity;
+            return docFullName === targetIdentity;
           });
 
           if (filteredDocs.length > 0) {
-            setFacultyData(filteredDocs[0]); // Populates the top header with the most recent profile data
-            setUserDocuments(filteredDocs);  // Populates the credentials array
+            setFacultyData(filteredDocs[0]); 
+            setUserDocuments(filteredDocs);  
           } else {
             setFacultyData(null); 
             setUserDocuments([]);
@@ -45,7 +47,7 @@ const MyPortfolio = () => {
     };
 
     fetchPortfolio();
-  }, []);
+  }, [user]); 
 
   // 3. UI Handlers
   const openViewer = (url, title) => {
@@ -137,28 +139,37 @@ const MyPortfolio = () => {
                   <p className="text-muted font-italic">No verified skills extracted yet.</p>
                 )}
               </div>
-              
-              <h6 className="text-muted fw-bold mb-3 mt-4">ELIGIBLE COURSE COMPETENCIES</h6>
-              <div className="d-flex flex-wrap gap-2">
-                {facultyData.eligibleSubjects && facultyData.eligibleSubjects.length > 0 ? (
-                  facultyData.eligibleSubjects.map((subject, index) => (
-                    <span key={index} className="badge bg-primary text-white border px-3 py-2">
-                      {subject}
-                    </span>
-                  ))
-                ) : (
-                  <p className="text-muted font-italic text-sm">No explicit course eligibilities found on certificates.</p>
-                )}
-              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* --- NEW: COURSE ELIGIBILITY SECTION --- */}
+      <div className="card shadow-sm border-0 mb-5">
+        <div className="card-body p-4">
+          <h5 className="fw-bold text-secondary border-bottom pb-2 mb-3">
+            <i className="bi bi-card-checklist text-success me-2"></i>Approved Teaching Eligibilities
+          </h5>
+          
+          <div className="d-flex flex-wrap gap-2">
+            {facultyData.eligibleSubjects && facultyData.eligibleSubjects.length > 0 ? (
+              facultyData.eligibleSubjects.map((courseCode, index) => (
+                <span key={index} className="badge bg-primary fs-6 px-3 py-2 shadow-sm">
+                  <i className="bi bi-book-half me-2"></i>{courseCode}
+                </span>
+              ))
+            ) : (
+              <p className="text-muted fst-italic mb-0">
+                No course eligibilities have been verified for this account yet. Upload relevant academic credentials to be assigned course codes.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Supporting Credentials Section */}
-      <h5 className="text-secondary mb-3 mt-5"><i className="bi bi-file-earmark-text me-2"></i>Supporting Credentials</h5>
+      <h5 className="text-secondary mb-3 mt-4"><i className="bi bi-file-earmark-text me-2"></i>Supporting Credentials</h5>
       <div className="row g-3">
-        {/* Iterate over the filtered userDocuments array */}
         {userDocuments.map((doc, index) => (
           <div className="col-md-6" key={index}>
             <div className="card shadow-sm border-0 h-100">

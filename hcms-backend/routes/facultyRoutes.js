@@ -6,6 +6,9 @@ const Faculty = require('../models/Faculty');
 const { cloudinary, upload } = require('../config/cloudinary');
 const User = require('../models/User'); 
 const bcrypt = require('bcryptjs'); 
+const Department = require('../models/Department');
+const Program = require('../models/Program');
+const Subject = require('../models/Subject');
 
 // --------------------------------------------------------
 // ROUTE 2: AI Document Extraction (Auto-Fill)
@@ -288,4 +291,305 @@ router.post('/match', async (req, res) => {
   }
 });
 
+// --------------------------------------------------------
+// ROUTE 1: Create Profile + Cloudinary + AI Vision OCR (POST)
+// --------------------------------------------------------
+router.post('/add', upload.single('document'), async (req, res) => {
+  try {
+    const { firstName, lastName, department, documentTitle, documentType, uploaderRole, autoApprove } = req.body;
+    let fileUrl = "";
+    let aiInput = []; 
+
+    // 1. Cloudinary Upload
+    if (req.file) {
+      const b64 = Buffer.from(req.file.buffer).toString("base64");
+      let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+      
+      const cldRes = await cloudinary.uploader.upload(dataURI, {
+        resource_type: "auto",
+        folder: "HCMS_Certificates"
+      });
+      fileUrl = cldRes.secure_url;
+
+      // 2. Gemini Vision Setup
+      const filePart = { inlineData: { data: b64, mimeType: req.file.mimetype } };
+
+      const prompt = `You are a highly accurate HR data extraction AI. Read the attached STI document.
+      Extract a list of key skills, certifications, and technologies ONLY if explicitly mentioned or strongly implied by the text.
+      If absolutely no discerning information is present, return an empty array.
+      You MUST return ONLY a JSON object containing a "tags" array of strings. Do not use markdown blocks. 
+      Example: {"tags": ["Java", "Cloud Computing", "SAP"]}`;
+    
+      aiInput = [prompt, filePart]; 
+      
+    } else {
+      const prompt = `You are an HR assistant for a university. 
+      Generate exactly 3 professional skill tags for a faculty member in the ${department} department. 
+      You MUST return ONLY a JSON object containing a "tags" array of strings.`;
+      
+      aiInput = [prompt];
+    }
+
+    // 3. DEFENSE-PROOF RETRY LOGIC FOR GEMINI
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-2.5-flash",
+      generationConfig: { responseMimeType: "application/json" }
+    });
+    
+    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+    let result;
+    let retries = 3; 
+
+    while (retries > 0) {
+      try {
+        result = await model.generateContent(aiInput);
+        break;
+      } catch (apiError) {
+        if (apiError.status === 503 && retries > 1) {
+          console.warn(`[Add API 503] Server overloaded. Retrying... (${retries - 1} attempts left)`);
+          await delay(2500);
+          retries--;
+        } else {
+          throw apiError; 
+        }
+      }
+    }
+    
+    // 4. Safe Parsing
+    let tagsArray = [];
+    try {
+      const aiText = result.response.text();
+      const parsedData = JSON.parse(aiText);
+      tagsArray = parsedData.tags || [];
+    } catch (parseError) {
+      console.error("Failed to parse Gemini output in /add route:", parseError);
+    }
+
+    // 5. Status & Shadow Provisioning
+    const finalStatus = (['hr', 'admin'].includes(uploaderRole) && autoApprove === 'true') ? 'approved' : 'pending';
+
+    const fullName = `${firstName} ${lastName}`;
+    const existingUser = await User.findOne({ name: { $regex: new RegExp(`^${fullName}$`, 'i') } });
+    
+    if (!existingUser) {
+      const baseUsername = `${firstName.toLowerCase().replace(/\s+/g, '')}.${lastName.toLowerCase().replace(/\s+/g, '')}`;
+      let uniqueUsername = baseUsername;
+      let counter = 1;
+      while (await User.findOne({ username: uniqueUsername })) {
+        uniqueUsername = `${baseUsername}${counter}`;
+        counter++;
+      }
+
+      const defaultPassword = "STI_password123";
+      const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+      const newUser = new User({
+        name: fullName, username: uniqueUsername, passwordHash: hashedPassword, role: 'faculty'
+      });
+      await newUser.save();
+    }
+
+    // Merge AI tags with any tags passed from the frontend extraction
+    let formattedTags = tagsArray;
+    if (req.body.tags) {
+      let frontendTags = [];
+      if (typeof req.body.tags === 'string') {
+        frontendTags = req.body.tags.split(',').map(tag => tag.trim()).filter(tag => tag !== "");
+      } else if (Array.isArray(req.body.tags)) {
+        frontendTags = req.body.tags;
+      }
+      formattedTags = [...new Set([...formattedTags, ...frontendTags])]; // Deduplicate
+    }
+
+    // 6. Save to Database
+    const newFaculty = new Faculty({
+      firstName, lastName, department, 
+      documentTitle, documentType, 
+      issuingInstitution: req.body.issuingInstitution,
+      dateReceived: req.body.dateReceived,
+      documentUrl: fileUrl, 
+      tags: formattedTags,
+      status: finalStatus
+    });
+
+    const savedFaculty = await newFaculty.save();
+    res.status(201).json({ message: "Profile & Document submitted!", data: savedFaculty });
+
+  } catch (error) {
+    console.error("Upload/AI Error:", error);
+    res.status(500).json({ error: "Failed to process submission", details: error.message });
+  }
+});
+// --------------------------------------------------------
+// ROUTE: Get Subject Hierarchy for Department Heads
+// --------------------------------------------------------
+router.get('/subjects/hierarchy', async (req, res) => {
+  try {
+    // Fetch all subjects and pull in the names of their linked Programs and Departments
+    const subjects = await Subject.find()
+      .populate('programId', 'name')
+      .populate('departmentId', 'name');
+
+    // Organize the flat list into the requested nested tree structure
+    const hierarchy = subjects.reduce((acc, sub) => {
+      // Safety check in case a subject is missing a department/program reference
+      if (!sub.departmentId || !sub.programId) return acc;
+
+      const dept = sub.departmentId.name;
+      const prog = sub.programId.name;
+
+      if (!acc[dept]) acc[dept] = {};
+      if (!acc[dept][prog]) acc[dept][prog] = [];
+      
+      acc[dept][prog].push({
+        courseCode: sub.courseCode,
+        subjectName: sub.subjectName
+      });
+
+      return acc;
+    }, {});
+
+    res.status(200).json(hierarchy);
+  } catch (error) {
+    console.error("Hierarchy Error:", error);
+    res.status(500).json({ error: "Failed to retrieve subject hierarchy." });
+  }
+});
+// --------------------------------------------------------
+// ROUTE: Get Eligible Faculty by Course Code
+// --------------------------------------------------------
+router.get('/subjects/:courseCode/faculty', async (req, res) => {
+  try {
+    const { courseCode } = req.params;
+    
+    // Find faculty who are approved AND have this exact course code in their array
+    const eligibleFaculty = await Faculty.find({ 
+      eligibleSubjects: courseCode,
+      status: 'approved' 
+    }).select('firstName lastName department tags'); // Only send back the data we need to display
+
+    res.status(200).json(eligibleFaculty);
+  } catch (error) {
+    console.error("Eligibility Fetch Error:", error);
+    res.status(500).json({ error: "Failed to retrieve eligible faculty." });
+  }
+});
+
+// --------------------------------------------------------
+// TEMPORARY SEED ROUTE: Auto-populate the Database with BSIT Curriculum
+// --------------------------------------------------------
+router.get('/seed-subjects', async (req, res) => {
+  try {
+    // 1. HARD WIPE: Drop collections entirely to destroy old ghost indexes
+    try { await Subject.collection.drop(); } catch (e) {} 
+    try { await Program.collection.drop(); } catch (e) {}
+    try { await Department.collection.drop(); } catch (e) {}
+
+    // 2. Create Departments based on course prefixes
+    const itDept = new Department({ name: "Information Technology" });
+    const genEdDept = new Department({ name: "General Education" });
+    const peDept = new Department({ name: "Physical Education" });
+    const nstpDept = new Department({ name: "National Service Training" });
+
+    await itDept.save();
+    await genEdDept.save();
+    await peDept.save();
+    await nstpDept.save();
+
+    // 3. Create the Program (Owned by IT)
+    const bsitProg = new Program({ name: "BSIT", departmentId: itDept._id });
+    await bsitProg.save();
+
+    // 4. Define Subjects Mapping
+    const subjectsData = [
+      // Term 1
+      { courseCode: "CITE1004", subjectName: "Introduction to Computing", deptId: itDept._id },
+      { courseCode: "CITE1003", subjectName: "Computer Programming 1", deptId: itDept._id },
+      { courseCode: "GEDC1002", subjectName: "The Contemporary World", deptId: genEdDept._id },
+      { courseCode: "STIC1002", subjectName: "Euthenics 1", deptId: itDept._id },
+      { courseCode: "GEDC1003", subjectName: "The Entrepreneurial Mind", deptId: genEdDept._id },
+      { courseCode: "GEDC1005", subjectName: "Mathematics in the Modern World", deptId: genEdDept._id },
+      { courseCode: "NSTP1008", subjectName: "National Service Training Program 1", deptId: nstpDept._id },
+      { courseCode: "PHED1005", subjectName: "P.E./PATHFIT 1: Movement Competency Training", deptId: peDept._id },
+      { courseCode: "GEDC1008", subjectName: "Understanding the Self", deptId: genEdDept._id },
+      
+      // Term 2
+      { courseCode: "CITE1006", subjectName: "Computer Programming 2", deptId: itDept._id },
+      { courseCode: "COSC1002", subjectName: "Discrete Structures 1 (Discrete Mathematics)", deptId: itDept._id },
+      { courseCode: "GEDC1010", subjectName: "Art Appreciation", deptId: genEdDept._id },
+      { courseCode: "GEDC1009", subjectName: "Ethics", deptId: genEdDept._id },
+      { courseCode: "NSTP1010", subjectName: "National Service Training Program 2", deptId: nstpDept._id },
+      { courseCode: "PHED1006", subjectName: "P.E./PATHFIT 2: Exercise-based Fitness Activities", deptId: peDept._id },
+      { courseCode: "GEDC1016", subjectName: "Purposive Communication", deptId: genEdDept._id },
+      { courseCode: "GEDC1013", subjectName: "Science, Technology, and Society", deptId: genEdDept._id },
+      { courseCode: "INTE1006", subjectName: "Systems Administration and Maintenance", deptId: itDept._id }
+    ];
+
+    // 5. Save all subjects
+    for (const sub of subjectsData) {
+      const newSubject = new Subject({
+        courseCode: sub.courseCode,
+        subjectName: sub.subjectName,
+        programId: bsitProg._id,
+        departmentId: sub.deptId
+      });
+      await newSubject.save();
+    }
+
+    // 6. Assign subset of core IT courses to existing IT Faculty for UI testing
+    // 6. CLEAN SLATE: Remove all course eligibilities from everyone
+    await Faculty.updateMany(
+      {}, // Empty filter means "select everyone"
+      { $set: { eligibleSubjects: [] } } // Set the array back to empty
+    );
+
+    res.status(200).json({ 
+      message: "SUCCESS: Database seeded with BSIT Year 1 Curriculum." 
+    });
+  } catch (error) {
+    console.error("Seeding Error:", error);
+    res.status(500).json({ error: "Failed to seed database." });
+  }
+});
+
+// --------------------------------------------------------
+// TEMPORARY SEED ROUTE: Auto-populate Defense Accounts
+// --------------------------------------------------------
+router.get('/seed-users', async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs');
+    const defaultPassword = "STI_password123";
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    // Define the exact accounts required for the Capstone demonstration
+    const defenseUsers = [
+      { name: "System Admin", username: "admin.user", role: "admin" },
+      { name: "Academic Director", username: "acad.head", role: "academic_head" },
+      { name: "Program Coordinator", username: "prog.head", role: "program_head" },
+      { name: "Euencis Palmones", username: "euencis.palmones", role: "faculty" }
+    ];
+
+    // Upsert logic: Updates the account if it exists, creates it if it does not.
+    for (const u of defenseUsers) {
+      await User.updateOne(
+        { username: u.username },
+        { 
+          $set: { 
+            name: u.name, 
+            role: u.role, 
+            passwordHash: hashedPassword 
+          } 
+        },
+        { upsert: true }
+      );
+    }
+
+    res.status(200).json({ 
+      message: "SUCCESS: Core defense accounts have been seeded into MongoDB. You may now log in." 
+    });
+  } catch (error) {
+    console.error("User Seeding Error:", error);
+    res.status(500).json({ error: "Failed to seed defense accounts." });
+  }
+});
 module.exports = router;

@@ -2,20 +2,22 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Login({ onLogin }) {
+  // Initialize navigation to prevent crashes after login
+  const navigate = useNavigate();
+
   // 'view' can be 'login', 'register', or 'forgot'
   const [view, setView] = useState('login'); 
   
-  // Added confirmPassword to the state
   // 1. Expanded credentials to hold the new AI and 2FA data
-const [credentials, setCredentials] = useState({ 
-  name: '', username: '', password: '', confirmPassword: '', 
-  department: '', email: '', phoneNumber: '' 
-});
+  const [credentials, setCredentials] = useState({ 
+    name: '', username: '', password: '', confirmPassword: '', 
+    department: '', email: '', phoneNumber: '' 
+  });
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
-  // 2. NEW: State for the AI Scanner
+  // 2. State for the AI Scanner
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState({ text: '', type: '' });
 
@@ -31,8 +33,9 @@ const [credentials, setCredentials] = useState({
     setView(newView);
     setError('');
     setSuccessMsg('');
-    setCredentials({ name: '', username: '', password: '', confirmPassword: '' });
+    setCredentials({ name: '', username: '', password: '', confirmPassword: '', department: '', email: '', phoneNumber: '' });
   };
+
   const handleAIScan = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -112,8 +115,15 @@ const [credentials, setCredentials] = useState({
         } else if (view === 'forgot') {
           setSuccessMsg(data.message); // Shows the temporary password
         } else {
-          onLogin(data.user);
-          navigate(['hr', 'admin'].includes(data.user.role) ? '/hr-dashboard' : '/');
+          // DEFENSE-PROOF LOGIN DATA HANDLING
+          const userData = data.user || data; // Adapts to either nested or flat JSON responses
+
+          if (userData && userData.username && userData.role) {
+            onLogin(userData);
+            navigate(['hr', 'admin'].includes(userData.role) ? '/hr-dashboard' : '/');
+          } else {
+            setError('Authentication succeeded, but server returned incomplete data. Try refreshing.');
+          }
         }
       } else {
         setError(data.error || 'Request failed.');
@@ -241,9 +251,9 @@ const [credentials, setCredentials] = useState({
           {/* Navigation Toggles */}
           <div className="mt-4 text-center">
             {view === 'login' ? (
-              <span className="text-muted small">Don't have an account? <a href="#" className="fw-bold text-decoration-none" onClick={() => switchView('register')} style={{ color: '#0033a0' }}>Sign up here</a></span>
+              <span className="text-muted small">Don't have an account? <a href="#" className="fw-bold text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('register'); }} style={{ color: '#0033a0' }}>Sign up here</a></span>
             ) : (
-              <span className="text-muted small">Return to <a href="#" className="fw-bold text-decoration-none" onClick={() => switchView('login')} style={{ color: '#0033a0' }}>Sign In</a></span>
+              <span className="text-muted small">Return to <a href="#" className="fw-bold text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('login'); }} style={{ color: '#0033a0' }}>Sign In</a></span>
             )}
           </div>
           

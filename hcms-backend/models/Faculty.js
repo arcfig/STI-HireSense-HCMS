@@ -12,6 +12,11 @@ const facultySchema = new mongoose.Schema({
   issuingInstitution: { type: String },
 
   tags: { type: [String], default: [] },
+
+  eligibleSubjects: [{ 
+    type: String, 
+    ref: 'Subject' 
+  }],
   documentUrl: { type: String, default: '' },
   status: { type: String, default: 'pending', enum: ['pending', 'approved', 'rejected'] }
 }, { timestamps: true });

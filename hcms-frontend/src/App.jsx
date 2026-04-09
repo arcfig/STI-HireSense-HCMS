@@ -11,7 +11,7 @@ import FacultyDirectory from './pages/FacultyDirectory';
 import UploadCredential from './pages/UploadCredential';
 import './App.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
-
+import SubjectManager from './pages/SubjectManager';
 // --- RBAC HELPER FUNCTIONS ---
 const isAdmin = (role) => role === 'admin';
 const isHeadOrAdmin = (role) => ['admin', 'academic_head', 'program_head'].includes(role);
@@ -76,6 +76,9 @@ function Sidebar({ user, onLogout }) {
             <Link to="/hr-dashboard" className={`nav-link px-4 py-2 my-1 mx-3 rounded ${location.pathname === '/hr-dashboard' ? 'active bg-warning text-dark' : 'text-warning'}`} style={{ textDecoration: 'none' }}>
               <i className="bi bi-shield-lock-fill me-2"></i> HR Dashboard
             </Link>
+            <Link to="/subjects" className={getLinkClass('/subjects')} style={getLinkStyle('/subjects')}>
+              <i className="bi bi-journal-bookmark-fill me-2"></i> Manage Subjects
+            </Link>
           </>
         )}
 
@@ -97,11 +100,27 @@ function Sidebar({ user, onLogout }) {
 }
 
 // --- MAIN APP COMPONENT ---
+// --- MAIN APP COMPONENT ---
 function App() {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('hireSenseUser');
-    return savedUser ? JSON.parse(savedUser) : null;
+    
+    // Safety Check 1: Reject literal "undefined" strings
+    if (!savedUser || savedUser === "undefined") {
+      return null;
+    }
+    
+    // Safety Check 2: Try/Catch block for parsing errors
+    try {
+      return JSON.parse(savedUser);
+    } catch (error) {
+      console.error("Local storage corrupted. Clearing session.");
+      localStorage.removeItem('hireSenseUser');
+      return null;
+    }
   });
+
+  // ... rest of your App component (handleLogin, handleLogout, etc.)
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -145,6 +164,10 @@ function App() {
                 <Route 
                   path="/hr-dashboard" 
                   element={isHeadOrAdmin(user.role) ? <HRDashboard user={user} /> : <Navigate to="/" />} 
+                />
+                <Route 
+                  path="/subjects" 
+                  element={isHeadOrAdmin(user.role) ? <SubjectManager /> : <Navigate to="/" />} 
                 />
                 
                 {/* PROTECTED ROUTE: Admin Only */}
