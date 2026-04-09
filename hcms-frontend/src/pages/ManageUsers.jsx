@@ -4,18 +4,38 @@ function ManageUsers({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
 
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/users');
-      const data = await response.json();
-      setUsers(data);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
+useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        // 1. Safely grab the logged-in user directly from the browser's memory
+        const storedUser = JSON.parse(localStorage.getItem('hireSenseUser')) || {};
+        const currentRole = storedUser.role || 'faculty';
 
-  useEffect(() => {
+        // 2. Pass the ID badge to the backend
+        const response = await fetch('http://localhost:5000/api/users', {
+          headers: {
+            'X-User-Role': currentRole
+          }
+        });
+        
+        const data = await response.json();
+        
+        // 3. Update state only if we got good data
+        if (response.ok && Array.isArray(data)) {
+          setUsers(data);
+        } else {
+          console.error("Failed to load users:", data.error);
+          setUsers([]);
+        }
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        setUsers([]);
+      }
+    };
+
     fetchUsers();
+    
+  // 4. IMPORTANT: This empty bracket [] tells React to run this exactly ONCE, stopping the infinite loop!
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
@@ -94,7 +114,7 @@ function ManageUsers({ currentUser }) {
                   <td className="px-4 py-3 fw-bold text-dark">{user.name}</td>
                   <td className="px-4 py-3 text-muted">{user.username}</td>
                   <td className="px-4 py-3">
-                    <span className={`badge ${user.role === 'hr' ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase`}>
+                    <span className={`badge ${['hr', 'admin'].includes(user.role) ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase`}>
                       {user.role}
                     </span>
                   </td>

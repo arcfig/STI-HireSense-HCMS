@@ -186,7 +186,7 @@ function MyProfile({ user }) {
 
             <div className="mb-4">
               <label className="text-muted small fw-bold text-uppercase">Access Level</label>
-              <div><span className={`badge ${user?.role === 'hr' ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase`}>{user?.role}</span></div>
+              <div><span className={`badge ${['hr', 'admin'].includes(user?.role) ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase`}>{user?.role}</span></div>
             </div>
 
             <div className="mt-auto pt-4 border-top">

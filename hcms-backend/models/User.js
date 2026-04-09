@@ -4,11 +4,12 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   username: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, default: 'faculty', enum: ['faculty', 'hr'] },
+  role: { type: String, default: 'faculty', enum: ['faculty', 'hr', 'admin'] },
   
   // NEW: Fields for future 2FA and profile management
   email: { type: String, default: '' },
   phoneNumber: { type: String, default: '' },
+  department: { type: String, default: '' },
   
   skillRatings: { type: Object, default: {} } 
 }, { timestamps: true });

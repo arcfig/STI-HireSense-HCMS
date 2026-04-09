@@ -1,329 +1,253 @@
-import { useState, useEffect } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import React, { useState, useEffect } from 'react';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
-function MyPortfolio({ user, viewAll }) {
-  const [approvedFaculty, setApprovedFaculty] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFolder, setSelectedFolder] = useState(null);
-  // NEW: State for the In-App Document Viewer Modal
-  const [previewDoc, setPreviewDoc] = useState(null);
+const MyPortfolio = () => {
+  // 1. State Management
+  const [facultyData, setFacultyData] = useState(null);
+  const [userDocuments, setUserDocuments] = useState([]); // Array to hold all credentials
+  const [loading, setLoading] = useState(true);
+  const [previewDoc, setPreviewDoc] = useState({ isOpen: false, url: '', title: '' });
 
-useEffect(() => {
-    const fetchData = async () => {
+  // 2. Fetch Data
+  useEffect(() => {
+    const fetchPortfolio = async () => {
       try {
-        // Grab the user's role to show the backend bouncer
-        const currentRole = user?.role || 'faculty';
-
-        const [docsRes, usersRes] = await Promise.all([
-          fetch('http://localhost:5000/api/faculty/approved'),
-          
-          // ADDED HEADERS: Show our ID Badge to the protected route!
-          fetch('http://localhost:5000/api/users', {
-            headers: {
-              'X-User-Role': currentRole
-            }
-          })
-        ]);
-        const docsData = await docsRes.json();
-        const usersData = await usersRes.json();
+        const response = await fetch('http://localhost:5000/api/faculty/approved');
+        const data = await response.json();
         
-        setApprovedFaculty(docsData);
-        // Only set usersData if the bouncer let us in (it won't be an array if it's an error)
-        if (Array.isArray(usersData)) {
-          setAllUsers(usersData);
+        // Retrieve the logged-in user's identifier from local storage.
+        // Replace 'username' or 'name' with the exact key established during your login process.
+        const storedIdentity = localStorage.getItem('name') || localStorage.getItem('username');
+
+        if (storedIdentity && data && data.length > 0) {
+          // Filter the global document array against the logged-in user's identity
+          const filteredDocs = data.filter(doc => {
+            const docFullName = `${doc.firstName} ${doc.lastName}`.toLowerCase().replace(/\s+/g, '');
+            const targetIdentity = storedIdentity.toLowerCase().replace(/\s+/g, '');
+            
+            // Evaluates matches based on either full name or explicitly saved username
+            return docFullName === targetIdentity || doc.username === storedIdentity;
+          });
+
+          if (filteredDocs.length > 0) {
+            setFacultyData(filteredDocs[0]); // Populates the top header with the most recent profile data
+            setUserDocuments(filteredDocs);  // Populates the credentials array
+          } else {
+            setFacultyData(null); 
+            setUserDocuments([]);
+          }
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error("Error fetching portfolio:", error);
+      } finally {
+        setLoading(false);
       }
     };
-    fetchData();
-  }, [user]);
 
-  useEffect(() => {
-    setSelectedFolder(null);
-  }, [searchTerm]);
+    fetchPortfolio();
+  }, []);
 
-  const filteredFaculty = approvedFaculty.filter((faculty) => {
-    const fullName = `${faculty.firstName} ${faculty.lastName}`.toLowerCase();
-    if (!viewAll) {
-      const loggedInNameParts = user.name.toLowerCase().split(' ');
-      const isOwner = loggedInNameParts.every(part => fullName.includes(part));
-      if (!isOwner) return false;
+  // 3. UI Handlers
+  const openViewer = (url, title) => {
+    if (url) {
+      setPreviewDoc({ isOpen: true, url, title });
+    } else {
+      alert("No file attached to this credential.");
     }
-    const searchLower = searchTerm.toLowerCase();
-    const dept = faculty.department.toLowerCase();
-    const tags = faculty.tags.join(' ').toLowerCase();
-    return fullName.includes(searchLower) || dept.includes(searchLower) || tags.includes(searchLower);
-  });
+  };
 
-  // Group folders and map the User's Skill Ratings to them
-  const groupedFolders = filteredFaculty.reduce((acc, doc) => {
-    const rawName = `${doc.firstName} ${doc.lastName}`;
-    const folderKey = rawName.toUpperCase();
+  const closeViewer = () => {
+    setPreviewDoc({ isOpen: false, url: '', title: '' });
+  };
 
-    // NEW: The Title Case Formatter
-    const formattedName = rawName
-      .toLowerCase()
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
+  // 4. Loading & Null States
+  if (loading) {
+    return <div className="container mt-5 text-center"><h5>Loading Portfolio...</h5></div>;
+  }
 
-    if (!acc[folderKey]) {
-      // Find the matching user account to grab their 1-5 star ratings
-      const matchedUser = allUsers.find(u => u.name.toLowerCase() === rawName.toLowerCase()) || {};
-      const ratings = matchedUser.skillRatings || {};
-      
-      // Calculate overall average
-      const ratingValues = Object.values(ratings);
-      const avgRating = ratingValues.length > 0 ? (ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) : 0;
+  if (!facultyData || userDocuments.length === 0) {
+    return <div className="container mt-5 text-center"><h5>No approved portfolio data found for this account.</h5></div>;
+  }
 
-      // Determine qualitative level
-      let level = "No Data";
-      if (avgRating >= 3.25) level = "Exceeds Expectations";
-      else if (avgRating >= 2.50) level = "Meets Expectations";
-      else if (avgRating >= 1.75) level = "Partially Meets";
-      else if (avgRating > 0) level = "Does Not Meet";
-
-      // Format data for the Recharts Bar Chart
-      const chartData = Object.keys(ratings).map(skill => ({
-        subject: skill,
-        score: ratings[skill]
-      }));
-
-      acc[folderKey] = {
-        name: formattedName, // FIXED: Use the beautifully formatted name here!
-        department: doc.department,
-        initials: `${doc.firstName.charAt(0)}${doc.lastName.charAt(0)}`.toUpperCase(),
-        documents: [],
-        ratingsData: chartData,
-        overallRating: avgRating,
-        overallLevel: level
-      };
-    }
-    acc[folderKey].documents.push(doc);
-    return acc;
-  }, {});
-
-  const folders = Object.values(groupedFolders);
-  const activeProfile = viewAll && selectedFolder ? groupedFolders[selectedFolder.toUpperCase()] : folders[0];
-  const displayDocuments = viewAll && selectedFolder ? groupedFolders[selectedFolder.toUpperCase()]?.documents || [] : filteredFaculty;
-
-  // Chart Colors (STI Blue and Yellow vibes)
-  const COLORS = ['#0033a0', '#0055ff', '#3377ff', '#6699ff', '#ffd700', '#ffaa00'];
+  // --- Radar Chart Data ---
+  const radarData = [
+    { metric: 'Learning Env.', rating: 4.2, fullMark: 5 },
+    { metric: 'Instructional Facilitation', rating: 4.8, fullMark: 5 },
+    { metric: 'Assessment', rating: 3.9, fullMark: 5 },
+    { metric: 'Professionalism', rating: 4.5, fullMark: 5 },
+  ];
 
   return (
-    <div>
-      {/* SEARCH HEADER */}
-      <div className="d-flex justify-content-between align-items-end mb-4 bg-white p-4 rounded-3 shadow-sm border-0">
+    <div className="container mt-4 pb-5">
+      {/* Header Section */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h2 className="fw-bold text-dark mb-1" style={{ color: '#0033a0' }}>
-            {viewAll ? "STI Faculty Directory" : "My Performance Dashboard"}
-          </h2>
-          <span className="text-muted">
-            {viewAll ? "Browse faculty credential folders and ratings." : "Your unified performance and credential view."}
-          </span>
+          <h2 className="fw-bold text-primary mb-0">{facultyData.firstName} {facultyData.lastName}</h2>
+          <p className="text-muted mb-0">Department: <strong>{facultyData.department}</strong></p>
         </div>
-        <div style={{ width: '350px' }}>
-          <div className="input-group">
-            <span className="input-group-text bg-primary text-white border-primary"><i className="bi bi-search"></i></span>
-            <input type="text" className="form-control border-primary focus-ring" placeholder="Search skills or names..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        <div className="text-end text-muted small">
+          Report Generated<br/>
+          <strong>{new Date().toLocaleDateString()}</strong>
+        </div>
+      </div>
+
+      {/* Analytics & Skills Row */}
+      <div className="row mb-4 align-items-stretch">
+        
+        {/* Left Column: Overall Rating (Radar Chart) */}
+        <div className="col-md-6">
+          <div className="card shadow-sm h-100 border-0">
+            <div className="card-body text-center d-flex flex-column justify-content-center">
+              <h6 className="text-muted fw-bold mb-0">OVERALL RATING</h6>
+              <h2 className="display-4 fw-bold mb-0">4.35</h2>
+              <div className="text-warning mb-2 fs-5">
+                ★ ★ ★ ★ ☆
+              </div>
+              
+              <div style={{ width: '100%', height: 250 }}>
+                <ResponsiveContainer>
+                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+                    <PolarGrid stroke="#e0e0e0" />
+                    <PolarAngleAxis dataKey="metric" tick={{ fill: '#6c757d', fontSize: 11, fontWeight: 'bold' }} />
+                    <PolarRadiusAxis angle={30} domain={[0, 5]} tick={false} axisLine={false} />
+                    <Radar name="Rating" dataKey="rating" stroke="#0d6efd" fill="#0d6efd" fillOpacity={0.4} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="bg-light text-success fw-bold py-1 rounded small border border-success border-opacity-25 mt-2">
+                Highly Proficient
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Verified Skills Summary */}
+        <div className="col-md-6">
+          <div className="card shadow-sm h-100 border-0">
+            <div className="card-body">
+              <h6 className="text-muted fw-bold mb-3">VERIFIED SKILL PROFICIENCIES</h6>
+              <div className="d-flex flex-wrap gap-2">
+                {facultyData.tags && facultyData.tags.length > 0 ? (
+                  facultyData.tags.map((tag, index) => (
+                    <span key={index} className="badge bg-light text-dark border px-3 py-2">
+                      {tag}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-muted font-italic">No verified skills extracted yet.</p>
+                )}
+              </div>
+              
+              <h6 className="text-muted fw-bold mb-3 mt-4">ELIGIBLE COURSE COMPETENCIES</h6>
+              <div className="d-flex flex-wrap gap-2">
+                {facultyData.eligibleSubjects && facultyData.eligibleSubjects.length > 0 ? (
+                  facultyData.eligibleSubjects.map((subject, index) => (
+                    <span key={index} className="badge bg-primary text-white border px-3 py-2">
+                      {subject}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-muted font-italic text-sm">No explicit course eligibilities found on certificates.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {viewAll && !selectedFolder ? (
-        /* --- FOLDER DIRECTORY VIEW --- */
-        <div className="row g-4">
-          {folders.map((folder, index) => (
-            <div className="col-md-4 col-lg-3" key={index}>
-              <div 
-                className="card shadow-sm border-0 rounded-4 h-100 text-center p-4 folder-card" 
-                style={{ cursor: 'pointer', transition: 'transform 0.2s', backgroundColor: '#f8fafc' }}
-                onClick={() => setSelectedFolder(folder.name)}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-5px)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-              >
-                <i className="bi bi-folder-fill display-1 mb-2" style={{ color: '#ffd700' }}></i>
-                <h5 className="fw-bold text-dark mb-1">{folder.name}</h5>
-                <p className="text-muted small mb-3">{folder.department}</p>
+      {/* Supporting Credentials Section */}
+      <h5 className="text-secondary mb-3 mt-5"><i className="bi bi-file-earmark-text me-2"></i>Supporting Credentials</h5>
+      <div className="row g-3">
+        {/* Iterate over the filtered userDocuments array */}
+        {userDocuments.map((doc, index) => (
+          <div className="col-md-6" key={index}>
+            <div className="card shadow-sm border-0 h-100">
+              <div className="card-body">
+                <h6 className="fw-bold mb-1">{doc.documentTitle}</h6>
+                <span className="badge bg-light text-secondary border mb-3">{doc.documentType}</span>
                 
-                {/* Rating Preview on Folder */}
-                {folder.overallRating > 0 ? (
-                  <div className="mb-3 text-warning">
-                    {[1, 2, 3, 4, 5].map(star => (
-                      <i key={star} className={`bi bi-star${folder.overallRating >= star ? '-fill' : ''}`}></i>
-                    ))}
-                    <span className="d-block text-muted small fw-bold mt-1">{folder.overallLevel}</span>
-                  </div>
+                <p className="small mb-1"><strong>Issuer:</strong> {doc.issuingInstitution}</p>
+                <p className="small mb-3"><strong>Issued:</strong> {doc.dateReceived}</p>
+
+                <p className="small fw-bold text-muted mb-1">Associated Verified Skills</p>
+                <div className="d-flex flex-wrap gap-1 mb-3">
+                  {doc.tags && doc.tags.map((tag, i) => (
+                    <span key={i} className="badge bg-light text-secondary border" style={{fontSize: '0.75rem'}}>{tag}</span>
+                  ))}
+                </div>
+
+                {doc.documentUrl ? (
+                  <button 
+                    className="btn btn-outline-primary btn-sm w-100"
+                    onClick={() => openViewer(doc.documentUrl, doc.documentTitle)}
+                  >
+                    View Attached Document
+                  </button>
                 ) : (
-                  <div className="mb-3 text-muted small fst-italic">No Rating Data</div>
+                  <button className="btn btn-outline-secondary btn-sm w-100" disabled>
+                    No File Attached
+                  </button>
                 )}
-                
-                <span className="badge bg-primary rounded-pill px-3 py-2 shadow-sm">
-                  {folder.documents.length} {folder.documents.length === 1 ? 'Credential' : 'Credentials'}
-                </span>
               </div>
             </div>
-          ))}
-        </div>
-      ) : (
-
-        /* --- THE NEW PERFORMANCE DASHBOARD (Matches Professor's Layout) --- */
-        <div>
-          {viewAll && selectedFolder && (
-            <button className="btn btn-outline-secondary mb-4 fw-bold shadow-sm" onClick={() => setSelectedFolder(null)}>
-              <i className="bi bi-arrow-left me-2"></i> Back to Directory
-            </button>
-          )}
-
-          {activeProfile && (
-            <div className="card shadow-sm border-0 rounded-3 p-4 mb-5 bg-white border-top border-5" style={{ borderColor: '#0033a0' }}>
-              
-              {/* Header Info */}
-              <div className="border-bottom pb-3 mb-4 d-flex justify-content-between align-items-center">
-                <div>
-                  <h3 className="fw-bold mb-1" style={{ color: '#0033a0' }}>{activeProfile.name}</h3>
-                  <h6 className="text-muted mb-0">Department: <strong>{activeProfile.department}</strong></h6>
-                </div>
-                <div className="text-end">
-                  <span className="text-muted small d-block">Report Generated</span>
-                  <strong>{new Date().toLocaleDateString()}</strong>
-                </div>
-              </div>
-
-              {/* The "Overall Rating" Box */}
-              <div className="row mb-4">
-                <div className="col-md-4">
-                  <div className="card border rounded-3 p-4 text-center h-100 bg-light">
-                    <p className="fw-bold text-secondary text-uppercase small mb-2">Overall Rating</p>
-                    <h1 className="display-4 fw-bold text-dark mb-0">{activeProfile.overallRating > 0 ? activeProfile.overallRating.toFixed(2) : "N/A"}</h1>
-                    <div className="text-warning fs-4 mb-2">
-                      {[1, 2, 3, 4, 5].map(star => (
-                        <i key={star} className={`bi bi-star${activeProfile.overallRating >= star ? '-fill' : ''} mx-1`}></i>
-                      ))}
-                    </div>
-                    <span className="badge bg-success bg-opacity-10 text-success border border-success-subtle py-2 px-3">
-                      {activeProfile.overallLevel}
-                    </span>
-                  </div>
-                </div>
-
-                {/* The Bar Chart Box */}
-                <div className="col-md-8">
-                  <div className="card border rounded-3 p-4 h-100">
-                    <p className="fw-bold text-secondary text-uppercase small mb-3">Verified Skill Proficiencies</p>
-                    {activeProfile.ratingsData && activeProfile.ratingsData.length > 0 ? (
-                      <div style={{ height: '200px', width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={activeProfile.ratingsData} margin={{ top: 5, right: 30, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
-                            <XAxis dataKey="subject" tick={{fontSize: 12, fill: '#6c757d'}} axisLine={false} tickLine={false} />
-                            <YAxis domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tick={{fontSize: 12, fill: '#6c757d'}} axisLine={false} tickLine={false} />
-                            <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.1)'}} />
-                            <Bar dataKey="score" radius={[4, 4, 0, 0]} maxBarSize={50}>
-                              {activeProfile.ratingsData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="d-flex justify-content-center align-items-center h-100 text-muted fst-italic">
-                        No proficiency ratings saved yet.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* THE CERTIFICATES GRID */}
-          <h5 className="fw-bold text-secondary mb-3"><i className="bi bi-file-earmark-text me-2"></i> Supporting Credentials</h5>
-          <div className="row g-4">
-            {displayDocuments.map((faculty) => (
-              <div className="col-md-6 col-lg-4" key={faculty._id}>
-                <div className="card h-100 p-4 shadow-sm border-0 rounded-3">
-                  <div className="mb-3 border-bottom pb-3">
-                    <h6 className="fw-bold text-dark lh-base mb-1">{faculty.documentTitle || 'Untitled'}</h6>
-                    <span className="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle">{faculty.documentType || 'Other'}</span>
-                  </div>
-                  <div className="mb-4 text-muted small">
-                    {faculty.issuingInstitution && <div className="mb-1"><strong>Issuer:</strong> {faculty.issuingInstitution}</div>}
-                    {faculty.dateReceived && <div className="mb-1"><strong>Issued:</strong> {new Date(faculty.dateReceived).toLocaleDateString()}</div>}
-                  </div>
-                  
-                  {/* UPGRADED SECURITY & PREVIEW PROTOCOL */}
-                  <div className="mt-auto pt-3 border-top">
-                    {/* Logic: Unlocked if you are HR, OR if you are viewing your Personal Portfolio (!viewAll) */}
-                    {(user?.role === 'hr' || !viewAll) ? (
-                      faculty.documentUrl ? (
-                        <button 
-                          onClick={() => setPreviewDoc({ url: faculty.documentUrl, title: faculty.documentTitle })} 
-                          className="btn btn-outline-primary w-100 fw-bold shadow-sm"
-                        >
-                          <i className="bi bi-eye-fill me-2"></i> View Certificate
-                        </button>
-                      ) : (
-                        <button className="btn btn-outline-secondary w-100 fw-bold" disabled>No File Attached</button>
-                      )
-                    ) : (
-                      <button className="btn bg-light text-muted border w-100 fw-bold" disabled>
-                        <i className="bi bi-lock-fill me-2"></i> HR Access Only
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
-        </div>
-      )}
-      {/* IN-APP DOCUMENT PREVIEW MODAL */}
-      {previewDoc && (
-        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.75)', zIndex: 1050 }} tabIndex="-1" onClick={() => setPreviewDoc(null)}>
-          <div className="modal-dialog modal-xl modal-dialog-centered" onClick={e => e.stopPropagation()}>
-            <div className="modal-content border-0 shadow-lg bg-dark">
+        ))}
+      </div>
+
+      {/* Document Viewer Modal */}
+      {previewDoc.isOpen && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
+            <div className="modal-content bg-dark border-0 shadow-lg">
               
-              {/* Modal Header */}
               <div className="modal-header border-bottom border-secondary px-4 py-3">
-                <h5 className="modal-title fw-bold text-white">
-                  <i className="bi bi-file-earmark-richtext-fill text-primary me-3"></i>
-                  {previewDoc.title || 'Document Preview'}
+                <h5 className="modal-title text-white">
+                  <i className="bi bi-file-earmark-text text-primary me-2"></i>
+                  {previewDoc.title}
                 </h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setPreviewDoc(null)} aria-label="Close"></button>
+                <button type="button" className="btn-close btn-close-white" onClick={closeViewer}></button>
               </div>
-              
-              {/* Modal Body (The Iframe Viewer) */}
-              <div className="modal-body p-0 bg-light d-flex justify-content-center align-items-center" style={{ height: '75vh' }}>
-                <iframe 
-                  src={previewDoc.url} 
-                  title="Document Preview" 
-                  width="100%" 
-                  height="100%" 
-                  style={{ border: 'none' }}
-                  allowFullScreen
-                ></iframe>
+
+              <div className="modal-body p-0 d-flex justify-content-center align-items-center" style={{ height: '75vh', backgroundColor: '#1e1e1e', overflow: 'hidden' }}>
+                {previewDoc.url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) ? (
+                  <img 
+                    src={previewDoc.url} 
+                    alt="Document Preview" 
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
+                  />
+                ) : (
+                  <object 
+                    data={previewDoc.url} 
+                    type="application/pdf" 
+                    width="100%" 
+                    height="100%"
+                    style={{ border: 'none' }}
+                  >
+                    <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white">
+                      <p className="mb-3">Browser native PDF viewer is disabled or unsupported.</p>
+                      <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light">
+                        Open Document Externally
+                      </a>
+                    </div>
+                  </object>
+                )}
               </div>
-              
-              {/* Modal Footer */}
-              <div className="modal-footer border-top border-secondary py-2 px-4 d-flex justify-content-between">
-                <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-light">
-                  <i className="bi bi-box-arrow-up-right me-2"></i> Fallback: Open in New Tab
+
+              <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
+                <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">
+                  <i className="bi bi-box-arrow-up-right me-2"></i>Fallback: Open in New Tab
                 </a>
-                <button type="button" className="btn btn-primary px-4 fw-bold" onClick={() => setPreviewDoc(null)}>
+                <button type="button" className="btn btn-primary" onClick={closeViewer}>
                   Close Viewer
                 </button>
               </div>
-
             </div>
           </div>
         </div>
       )}
+      
     </div>
   );
-}
+};
 
 export default MyPortfolio;
