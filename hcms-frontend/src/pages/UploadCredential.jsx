@@ -65,6 +65,10 @@ const UploadCredential = () => {
           documentTitle: data.documentTitle || prev.documentTitle,
           issuingInstitution: data.issuingInstitution || prev.issuingInstitution,
           dateReceived: data.dateReceived || prev.dateReceived,
+          
+          // --- FIX: Mapped the expiration date to the frontend state ---
+          expirationDate: data.expirationDate || prev.expirationDate,
+          
           firstName: data.firstName || prev.firstName,
           lastName: data.lastName || prev.lastName,
           department: data.department || prev.department

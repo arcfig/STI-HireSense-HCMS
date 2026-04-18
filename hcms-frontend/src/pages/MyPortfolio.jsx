@@ -178,7 +178,18 @@ const MyPortfolio = ({ user }) => {
                 <span className="badge bg-light text-secondary border mb-3">{doc.documentType}</span>
                 
                 <p className="small mb-1"><strong>Issuer:</strong> {doc.issuingInstitution}</p>
-                <p className="small mb-3"><strong>Issued:</strong> {doc.dateReceived}</p>
+
+                  {/* Formats the Issued Date to remove the ugly T00:00:00Z timestamp */}
+                <p className={`small ${doc.expirationDate ? 'mb-1' : 'mb-3'}`}>
+                  <strong>Issued:</strong> {doc.dateReceived ? doc.dateReceived.split('T')[0] : 'N/A'}
+                </p>
+
+                  {/* Conditionally renders the Expiration Date only if the AI found one */}
+                {doc.expirationDate && (
+                <p className="small mb-3 text-danger fw-bold">
+                  <strong>Expires:</strong> {doc.expirationDate.split('T')[0]}
+                </p>
+                )}
 
                 <p className="small fw-bold text-muted mb-1">Associated Verified Skills</p>
                 <div className="d-flex flex-wrap gap-1 mb-3">
@@ -220,6 +231,8 @@ const MyPortfolio = ({ user }) => {
               </div>
 
               <div className="modal-body p-0 d-flex justify-content-center align-items-center" style={{ height: '75vh', backgroundColor: '#1e1e1e', overflow: 'hidden' }}>
+                
+                {/* --- UPDATED RENDERER LOGIC --- */}
                 {previewDoc.url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) ? (
                   <img 
                     src={previewDoc.url} 
@@ -227,21 +240,23 @@ const MyPortfolio = ({ user }) => {
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
                   />
                 ) : (
-                  <object 
-                    data={previewDoc.url} 
-                    type="application/pdf" 
+                  <iframe 
+                    src={`https://docs.google.com/gview?url=${encodeURIComponent(previewDoc.url)}&embedded=true`}
+                    title="PDF Viewer"
                     width="100%" 
                     height="100%"
-                    style={{ border: 'none' }}
+                    style={{ border: 'none', backgroundColor: '#fff' }}
                   >
                     <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white">
-                      <p className="mb-3">Browser native PDF viewer is disabled or unsupported.</p>
+                      <p className="mb-3">Unable to load Google Document Viewer.</p>
                       <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light">
                         Open Document Externally
                       </a>
                     </div>
-                  </object>
+                  </iframe>
                 )}
+                {/* --- END UPDATED RENDERER LOGIC --- */}
+
               </div>
 
               <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">

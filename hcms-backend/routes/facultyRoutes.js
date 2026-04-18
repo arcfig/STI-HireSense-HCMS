@@ -74,8 +74,8 @@ router.post('/extract', upload.single('document'), async (req, res) => {
     
     If you cannot find a specific piece of information, leave the string empty ("").
     You MUST return ONLY a valid JSON object. Do not use markdown.
-    Example format: {"firstName": "John", "lastName": "Doe", "documentTitle": "AWS Certified", "department": "Information Technology", "dateReceived": "2023-01-15", "issuingInstitution": "Amazon", "tags": "AWS, Cloud Architecture"}`;
-
+    Example format: {"firstName": "John", "lastName": "Doe", "documentTitle": "AWS Certified", "department": "Information Technology", "dateReceived": "2023-01-15", "expirationDate": "2026-01-15", "issuingInstitution": "Amazon", "tags": "AWS, Cloud Architecture"}`;
+    
     // 1. DEFENSE-PROOF FIX: Force application/json response type
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
