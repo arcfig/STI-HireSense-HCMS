@@ -12,6 +12,8 @@ import UploadCredential from './pages/UploadCredential';
 import './App.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import SubjectManager from './pages/SubjectManager';
+import ArchivedUsers from './pages/ArchivedUsers';
+
 // --- RBAC HELPER FUNCTIONS ---
 const isAdmin = (role) => role === 'admin';
 const isHeadOrAdmin = (role) => ['admin', 'academic_head', 'program_head'].includes(role);
@@ -84,9 +86,16 @@ function Sidebar({ user, onLogout }) {
 
         {/* ADMIN ONLY LINKS */}
         {isAdmin(role) && (
-          <Link to="/manage-users" className={getLinkClass('/manage-users')} style={getLinkStyle('/manage-users')}>
-            <i className="bi bi-person-lines-fill me-2"></i> Manage Users
-          </Link>
+          <>
+            <Link to="/manage-users" className={getLinkClass('/manage-users')} style={getLinkStyle('/manage-users')}>
+              <i className="bi bi-person-lines-fill me-2"></i> Manage Users
+            </Link>
+            
+            {/* NEW: Archived Accounts Route Link */}
+            <Link to="/archived-users" className={getLinkClass('/archived-users')} style={getLinkStyle('/archived-users')}>
+              <i className="bi bi-archive-fill me-2"></i> Archived Accounts
+            </Link>
+          </>
         )}
       </div>
 
@@ -99,7 +108,6 @@ function Sidebar({ user, onLogout }) {
   );
 }
 
-// --- MAIN APP COMPONENT ---
 // --- MAIN APP COMPONENT ---
 function App() {
   const [user, setUser] = useState(() => {
@@ -119,8 +127,6 @@ function App() {
       return null;
     }
   });
-
-  // ... rest of your App component (handleLogin, handleLogout, etc.)
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -174,6 +180,12 @@ function App() {
                 <Route 
                   path="/manage-users" 
                   element={isAdmin(user.role) ? <ManageUsers currentUser={user} /> : <Navigate to="/" />} 
+                />
+                
+                {/* NEW PROTECTED ROUTE: Admin Only - Archived Accounts */}
+                <Route 
+                  path="/archived-users" 
+                  element={isAdmin(user.role) ? <ArchivedUsers /> : <Navigate to="/" />} 
                 />
                 
                 {/* FALLBACK */}

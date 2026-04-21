@@ -5,19 +5,16 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
   
-  // UPDATED: Added 'academic_head' and 'program_head' to the allowed roles
-  role: { 
-    type: String, 
-    default: 'faculty', 
-    enum: ['faculty', 'hr', 'admin', 'academic_head', 'program_head'] 
-  },
+  // UPDATED: Removed 'hr' from the enum array
+  role: { type: String, default: 'faculty', enum: ['faculty', 'admin', 'academic_head', 'program_head'] },
   
-  // NEW: Fields for future 2FA and profile management
   email: { type: String, default: '' },
   phoneNumber: { type: String, default: '' },
   department: { type: String, default: '' },
+  skillRatings: { type: Object, default: {} },
   
-  skillRatings: { type: Object, default: {} } 
+  // Soft-delete flag
+  isArchived: { type: Boolean, default: false } 
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

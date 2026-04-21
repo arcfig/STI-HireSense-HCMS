@@ -3,19 +3,19 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User'); 
 const router = express.Router();
 
-const seedDatabase = async () => {
-  const count = await User.countDocuments();
-  if (count === 0) {
-    console.log("Empty database detected. Generating default accounts...");
-    await User.create([
-      { username: "henry.garcia", passwordHash: bcrypt.hashSync("password123", 10), role: "faculty", name: "Henry Garcia" },
-      // FIXED: Generic Admin account instead of Alain
-      { username: "main.admin", passwordHash: bcrypt.hashSync("admin123", 10), role: "hr", name: "System Administrator" } 
-    ]);
-    console.log("Default accounts created securely!");
-  }
-};
-seedDatabase();
+// const seedDatabase = async () => {
+//   const count = await User.countDocuments();
+//   if (count === 0) {
+//     console.log("Empty database detected. Generating default accounts...");
+//     await User.create([
+//       { username: "henry.garcia", passwordHash: bcrypt.hashSync("password123", 10), role: "faculty", name: "Henry Garcia" },
+//       // FIXED: Generic Admin account instead of Alain
+//       { username: "main.admin", passwordHash: bcrypt.hashSync("admin123", 10), role: "admin", name: "System Administrator" } 
+//     ]);
+//     console.log("Default accounts created securely!");
+//   }
+// };
+// seedDatabase();
 
 // --- NEW ROUTE: REGISTER ACCOUNT ---
 router.post('/register', async (req, res) => {
@@ -39,7 +39,6 @@ router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
     
-    // Ensure you have these imported at the top of your file, or require them here
     const User = require('../models/User'); 
     const bcrypt = require('bcryptjs');
 
@@ -48,6 +47,14 @@ router.post('/login', async (req, res) => {
     if (!user) {
       return res.status(401).json({ error: "Invalid username or password" });
     }
+
+    // --- NEW SECURITY BLOCK: Prevent archived accounts from logging in ---
+    if (user.isArchived) {
+      return res.status(403).json({ 
+        error: "Account Archived: This account has been disabled. Please contact the system administrator for restoration." 
+      });
+    }
+    // ---------------------------------------------------------------------
 
     // 2. Password Evaluation
     const isStandardMatch = await bcrypt.compare(password, user.passwordHash);
@@ -78,6 +85,11 @@ router.put('/change-password', async (req, res) => {
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ error: "User not found" });
 
+    // Prevent archived accounts from changing passwords
+    if (user.isArchived) {
+      return res.status(403).json({ error: "Account Archived: Cannot modify disabled accounts." });
+    }
+
     const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
     if (!isMatch) return res.status(401).json({ error: "Incorrect current password" });
 
@@ -98,6 +110,13 @@ router.post('/forgot-password', async (req, res) => {
   try {
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ error: "Username not found in the system." });
+
+    // Prevent archived accounts from resetting passwords
+    if (user.isArchived) {
+      return res.status(403).json({ 
+        error: "Account Archived: Cannot reset password for a disabled account." 
+      });
+    }
 
     // Prototype bypass: Reset to a temporary password instead of sending an email
     const tempPassword = "STI_password123";

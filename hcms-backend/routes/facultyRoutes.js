@@ -12,47 +12,6 @@ const Subject = require('../models/Subject');
 
 // --------------------------------------------------------
 // ROUTE 2: AI Document Extraction (Auto-Fill)
-// This ONLY reads the file and returns JSON. It does not save to the DB.
-// --------------------------------------------------------
-router.post('/extract', upload.single('document'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No document provided for extraction." });
-    }
-
-    const b64 = Buffer.from(req.file.buffer).toString("base64");
-    const filePart = { inlineData: { data: b64, mimeType: req.file.mimetype } };
-
-    const prompt = `You are a highly accurate HR data extraction AI. Read the attached resume or certificate.
-    Extract the person's first name, last name, the exact title of the document, and infer their academic department.
-    Also extract the "dateReceived" (YYYY-MM-DD), the "expirationDate" (YYYY-MM-DD, leave blank if none), and the "issuingInstitution" (e.g., Cisco).
-    
-    STRICT INSTRUCTION REGARDING SKILLS/TAGS:
-    - Extract a comma-separated string of key skills or technologies ONLY if explicitly mentioned or strongly implied by the text.
-    - If absolutely no discerning information is present, or the document is blank/unreadable, the "tags" field MUST be an empty string ("").
-    - DO NOT invent, assume, or hallucinate tags. 
-    
-    If you cannot find a specific piece of information, leave the string empty ("").
-    Return ONLY a raw, valid JSON object with no formatting.
-    Example format: {"firstName": "John", "lastName": "Doe", "documentTitle": "AWS Certified", "department": "Information Technology", "dateReceived": "2023-01-15", "issuingInstitution": "Amazon", "tags": "AWS, Cloud Architecture"}`;
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-    const result = await model.generateContent([prompt, filePart]);
-    
-    let aiText = result.response.text().trim();
-    aiText = aiText.replace(/```json/gi, '').replace(/```/gi, '').trim();
-    
-    const extractedData = JSON.parse(aiText);
-    res.status(200).json(extractedData);
-
-  } catch (error) {
-    console.error("Extraction Error:", error);
-    res.status(500).json({ error: "Failed to extract data from document." });
-  }
-});
-
-// --------------------------------------------------------
-// ROUTE 2: AI Document Extraction (Auto-Fill)
 // --------------------------------------------------------
 router.post('/extract', upload.single('document'), async (req, res) => {
   try {
@@ -136,12 +95,24 @@ router.get('/pending', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// ROUTE: Fetch ONLY Approved Profiles (For the Portfolio Page)
+// ROUTE: Fetch ONLY Approved & Active Profiles (For Directory/Portfolio)
 // --------------------------------------------------------
 router.get('/approved', async (req, res) => {
   try {
+    // 1. Fetch only ACTIVE users from the User collection
+    const activeUsers = await User.find({ isArchived: { $ne: true } });
+    const activeUserNames = activeUsers.map(u => u.name.toLowerCase());
+
+    // 2. Fetch approved profiles from the Faculty collection
     const approvedProfiles = await Faculty.find({ status: 'approved' }).sort({ createdAt: -1 });
-    res.status(200).json(approvedProfiles);
+
+    // 3. SECURITY FILTER: Only return profiles that belong to active users
+    const activeApprovedProfiles = approvedProfiles.filter(profile => {
+      const fullName = `${profile.firstName} ${profile.lastName}`.toLowerCase();
+      return activeUserNames.includes(fullName);
+    });
+
+    res.status(200).json(activeApprovedProfiles);
   } catch (error) {
     console.error("Error fetching approved profiles:", error);
     res.status(500).json({ error: "Failed to fetch portfolio data." });
@@ -183,7 +154,7 @@ router.put('/edit/:id', async (req, res) => {
     const updatedFaculty = await Faculty.findByIdAndUpdate(
       req.params.id,
       { firstName, lastName, department, documentTitle, documentType, tags: updatedTags },
-      { returnDocument: 'after' } // <--- Replaces { new: true }
+      { returnDocument: 'after' } 
     );
 
     if (!updatedFaculty) {
@@ -199,7 +170,7 @@ router.put('/edit/:id', async (req, res) => {
 
 
 // --------------------------------------------------------
-// ROUTE: AI Candidate Matcher (Aggregated by User)
+// ROUTE: AI Candidate Matcher (Aggregated by Active User)
 // --------------------------------------------------------
 router.post('/match', async (req, res) => {
   try {
@@ -209,7 +180,8 @@ router.post('/match', async (req, res) => {
     const User = require('../models/User'); 
     const [candidates, users] = await Promise.all([
       Faculty.find({ status: 'approved' }),
-      User.find({}, '-passwordHash')
+      // SECURITY FILTER: Only match against active users
+      User.find({ isArchived: { $ne: true } }, '-passwordHash')
     ]);
 
     if (candidates.length === 0) return res.status(404).json({ error: "No approved candidates found." });
@@ -230,11 +202,17 @@ router.post('/match', async (req, res) => {
 
     const candidateData = Object.values(groupedProfiles).map(profile => {
       const matchedUser = users.find(u => u.name.toLowerCase() === profile.name.toLowerCase());
+      
+      // SECURITY FILTER: If they aren't in the active users list, skip them entirely
+      if (!matchedUser) return null;
+
       return {
         id: profile.id, name: profile.name, department: profile.department,
         skills: Array.from(profile.tags), skillRatings: matchedUser?.skillRatings || {}, documents: profile.documents
       };
-    });
+    }).filter(Boolean); // Remove the nulls
+
+    if (candidateData.length === 0) return res.status(404).json({ error: "No active candidates available for matching." });
 
     const prompt = `You are an expert HR Candidate Matching AI.
     The HR Department needs a candidate with these requirements: "${requirements}"
@@ -250,19 +228,19 @@ router.post('/match', async (req, res) => {
     // --- ENTERPRISE RETRY LOGIC ---
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let result;
-    let retries = 3; // Maximum number of attempts
+    let retries = 3; 
 
     while (retries > 0) {
       try {
         result = await model.generateContent(prompt);
-        break; // If successful, break out of the loop
+        break; 
       } catch (apiError) {
         if (apiError.status === 503 && retries > 1) {
           console.warn(`[API 503] Google server overloaded. Retrying... (${retries - 1} attempts left)`);
-          await delay(2000); // Wait 2 seconds before hitting the API again
+          await delay(2000); 
           retries--;
         } else {
-          throw apiError; // If it's a different error, or we ran out of retries, throw it down to the main catch block
+          throw apiError; 
         }
       }
     }
@@ -420,19 +398,17 @@ router.post('/add', upload.single('document'), async (req, res) => {
     res.status(500).json({ error: "Failed to process submission", details: error.message });
   }
 });
+
 // --------------------------------------------------------
 // ROUTE: Get Subject Hierarchy for Department Heads
 // --------------------------------------------------------
 router.get('/subjects/hierarchy', async (req, res) => {
   try {
-    // Fetch all subjects and pull in the names of their linked Programs and Departments
     const subjects = await Subject.find()
       .populate('programId', 'name')
       .populate('departmentId', 'name');
 
-    // Organize the flat list into the requested nested tree structure
     const hierarchy = subjects.reduce((acc, sub) => {
-      // Safety check in case a subject is missing a department/program reference
       if (!sub.departmentId || !sub.programId) return acc;
 
       const dept = sub.departmentId.name;
@@ -455,6 +431,7 @@ router.get('/subjects/hierarchy', async (req, res) => {
     res.status(500).json({ error: "Failed to retrieve subject hierarchy." });
   }
 });
+
 // --------------------------------------------------------
 // ROUTE: Get Eligible Faculty by Course Code
 // --------------------------------------------------------
@@ -466,7 +443,7 @@ router.get('/subjects/:courseCode/faculty', async (req, res) => {
     const eligibleFaculty = await Faculty.find({ 
       eligibleSubjects: courseCode,
       status: 'approved' 
-    }).select('firstName lastName department tags'); // Only send back the data we need to display
+    }).select('firstName lastName department tags'); 
 
     res.status(200).json(eligibleFaculty);
   } catch (error) {
@@ -536,11 +513,10 @@ router.get('/seed-subjects', async (req, res) => {
       await newSubject.save();
     }
 
-    // 6. Assign subset of core IT courses to existing IT Faculty for UI testing
     // 6. CLEAN SLATE: Remove all course eligibilities from everyone
     await Faculty.updateMany(
-      {}, // Empty filter means "select everyone"
-      { $set: { eligibleSubjects: [] } } // Set the array back to empty
+      {}, 
+      { $set: { eligibleSubjects: [] } } 
     );
 
     res.status(200).json({ 
@@ -602,4 +578,5 @@ router.get('/wipe-faculty', async (req, res) => {
     res.status(500).json({ error: "Failed to wipe faculty data." });
   }
 });
+
 module.exports = router;

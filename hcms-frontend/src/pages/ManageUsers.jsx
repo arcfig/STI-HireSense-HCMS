@@ -4,15 +4,13 @@ function ManageUsers({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
 
-useEffect(() => {
+  useEffect(() => {
     const fetchUsers = async () => {
       try {
-        // 1. Safely grab the logged-in user directly from the browser's memory
         const storedUser = JSON.parse(localStorage.getItem('hireSenseUser')) || {};
         const currentRole = storedUser.role || 'faculty';
 
-        // 2. Pass the ID badge to the backend
-        const response = await fetch('http://localhost:5000/api/users', {
+        const response = await fetch('http://localhost:5000/api/users/active', {
           headers: {
             'X-User-Role': currentRole
           }
@@ -20,7 +18,6 @@ useEffect(() => {
         
         const data = await response.json();
         
-        // 3. Update state only if we got good data
         if (response.ok && Array.isArray(data)) {
           setUsers(data);
         } else {
@@ -34,8 +31,6 @@ useEffect(() => {
     };
 
     fetchUsers();
-    
-  // 4. IMPORTANT: This empty bracket [] tells React to run this exactly ONCE, stopping the infinite loop!
   }, []);
 
   const handleRoleChange = async (userId, newRole) => {
@@ -48,7 +43,17 @@ useEffect(() => {
 
       if (response.ok) {
         setMessage({ text: 'User role updated successfully.', type: 'success' });
-        fetchUsers();
+        
+        // Refresh active users
+        const fetchUpdatedUsers = async () => {
+           const storedUser = JSON.parse(localStorage.getItem('hireSenseUser')) || {};
+           const response = await fetch('http://localhost:5000/api/users/active', {
+             headers: { 'X-User-Role': storedUser.role || 'faculty' }
+           });
+           const data = await response.json();
+           if (response.ok && Array.isArray(data)) setUsers(data);
+        };
+        fetchUpdatedUsers();
         setTimeout(() => setMessage({ text: '', type: '' }), 3000);
       } else {
         setMessage({ text: 'Failed to update role.', type: 'danger' });
@@ -58,27 +63,43 @@ useEffect(() => {
     }
   };
 
-  const handleDelete = async (userId, username) => {
+  const handleArchive = async (userId, username) => {
     if (username === 'main.admin') {
-      return setMessage({ text: 'Security override: Cannot delete the master admin.', type: 'danger' });
+      return setMessage({ text: 'Security override: Cannot archive the master admin.', type: 'danger' });
     }
     
-    if (!window.confirm(`Are you sure you want to permanently delete the account for ${username}?`)) return;
+    if (!window.confirm(`Are you sure you want to archive the account for ${username}?`)) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, { method: 'DELETE' });
+      const response = await fetch(`http://localhost:5000/api/users/${userId}/archive`, { method: 'PUT' });
       
       if (response.ok) {
-        setMessage({ text: 'User account deleted.', type: 'success' });
-        fetchUsers();
+        setMessage({ text: 'User account successfully archived.', type: 'success' });
+        
+        // Remove the archived user from the active UI state immediately
+        setUsers(users.filter(user => user._id !== userId));
+        
         setTimeout(() => setMessage({ text: '', type: '' }), 3000);
       } else {
         const data = await response.json();
-        setMessage({ text: data.error || 'Failed to delete user.', type: 'danger' });
+        setMessage({ text: data.error || 'Failed to archive user.', type: 'danger' });
       }
     } catch (error) {
       setMessage({ text: 'Server error.', type: 'danger' });
     }
+  };
+
+  // Helper function to format role text (e.g., "academic_head" -> "ACADEMIC HEAD")
+  const formatRoleText = (role) => {
+    if (!role) return '';
+    return role.replace('_', ' ').toUpperCase();
+  };
+
+  // Helper function for visual distinction of roles
+  const getBadgeColor = (role) => {
+    if (role === 'admin') return 'bg-danger';
+    if (['academic_head', 'program_head'].includes(role)) return 'bg-primary';
+    return 'bg-secondary';
   };
 
   return (
@@ -114,26 +135,36 @@ useEffect(() => {
                   <td className="px-4 py-3 fw-bold text-dark">{user.name}</td>
                   <td className="px-4 py-3 text-muted">{user.username}</td>
                   <td className="px-4 py-3">
-                    <span className={`badge ${['hr', 'admin'].includes(user.role) ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase`}>
-                      {user.role}
+                    <span className={`badge ${getBadgeColor(user.role)} px-3 py-2`}>
+                      {formatRoleText(user.role)}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    {/* Prevent the logged-in user from deleting or demoting themselves */}
+                    {/* Prevent the logged-in user from altering themselves */}
                     {user.username !== currentUser.username && user.username !== 'main.admin' ? (
-                      <div className="d-flex justify-content-center gap-2">
-                        {user.role === 'faculty' ? (
-                          <button onClick={() => handleRoleChange(user._id, 'hr')} className="btn btn-sm btn-outline-primary fw-bold px-3">
-                            <i className="bi bi-shield-arrow-up me-1"></i> Make HR
-                          </button>
-                        ) : (
-                          <button onClick={() => handleRoleChange(user._id, 'faculty')} className="btn btn-sm btn-outline-secondary fw-bold px-3">
-                            <i className="bi bi-shield-arrow-down me-1"></i> Make Faculty
-                          </button>
-                        )}
-                        <button onClick={() => handleDelete(user._id, user.username)} className="btn btn-sm btn-danger fw-bold px-3 shadow-sm">
-                          <i className="bi bi-trash3-fill"></i>
+                      <div className="d-flex justify-content-center align-items-center gap-2">
+                        
+                        {/* --- NEW: Scalable Role Selection Dropdown --- */}
+                        <select 
+                          className="form-select form-select-sm shadow-sm" 
+                          style={{ width: '150px', cursor: 'pointer' }}
+                          value={user.role}
+                          onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                        >
+                          <option value="faculty">Faculty</option>
+                          <option value="academic_head">Academic Head</option>
+                          <option value="program_head">Program Head</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        
+                        <button 
+                          onClick={() => handleArchive(user._id, user.username)} 
+                          className="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm"
+                          title="Archive Account"
+                        >
+                          <i className="bi bi-archive-fill"></i>
                         </button>
+                        
                       </div>
                     ) : (
                       <span className="text-muted small fst-italic">System Protected</span>
@@ -141,6 +172,12 @@ useEffect(() => {
                   </td>
                 </tr>
               ))}
+              
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="text-center py-4 text-muted">No active user accounts found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
