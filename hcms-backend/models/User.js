@@ -5,7 +5,6 @@ const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
   
-  // UPDATED: Removed 'hr' from the enum array
   role: { type: String, default: 'faculty', enum: ['faculty', 'admin', 'academic_head', 'program_head'] },
   
   email: { type: String, default: '' },

@@ -22,20 +22,26 @@ router.post('/extract', upload.single('document'), async (req, res) => {
     const b64 = Buffer.from(req.file.buffer).toString("base64");
     const filePart = { inlineData: { data: b64, mimeType: req.file.mimetype } };
 
-    const prompt = `You are a highly accurate HR data extraction AI. Read the attached resume or certificate.
+    const prompt = `You are a highly accurate HR data extraction AI. Read the attached document.
+    
+    TASK 1: CLASSIFICATION
+    Determine the exact document type. You MUST select strictly from one of these six options:
+    "201 File", "Certificate", "Faculty Evaluation", "Contract", "Letter of Intent", "Non-Renewal Contract".
+    
+    TASK 2: STANDARD EXTRACTION
     Extract the person's first name, last name, the exact title of the document, and infer their academic department.
-    Also extract the "dateReceived" (YYYY-MM-DD), the "expirationDate" (YYYY-MM-DD, leave blank if none), and the "issuingInstitution" (e.g., Cisco).
+    Also extract the "dateReceived" (YYYY-MM-DD), the "expirationDate" (YYYY-MM-DD, leave blank if none), and the "issuingInstitution".
+    
+    TASK 3: DYNAMIC METRICS
+    - If the document is a "Faculty Evaluation", extract the "academicYear" (e.g., "SY 2025-2026"), "term" (e.g., "Term 1"), and the final overall "evaluationRating" as a number (e.g., 4.35).
     
     STRICT INSTRUCTION REGARDING SKILLS/TAGS:
-    - Extract a comma-separated string of key skills or technologies ONLY if explicitly mentioned or strongly implied by the text.
-    - If absolutely no discerning information is present, or the document is blank/unreadable, the "tags" field MUST be an empty string ("").
-    - DO NOT invent, assume, or hallucinate tags. 
+    - Extract a comma-separated string of key skills or technologies ONLY if explicitly mentioned.
+    - If absolutely no discerning information is present, the "tags" field MUST be an empty string ("").
     
-    If you cannot find a specific piece of information, leave the string empty ("").
     You MUST return ONLY a valid JSON object. Do not use markdown.
-    Example format: {"firstName": "John", "lastName": "Doe", "documentTitle": "AWS Certified", "department": "Information Technology", "dateReceived": "2023-01-15", "expirationDate": "2026-01-15", "issuingInstitution": "Amazon", "tags": "AWS, Cloud Architecture"}`;
+    Example format: {"firstName": "John", "lastName": "Doe", "documentType": "Faculty Evaluation", "documentTitle": "Performance Evaluation", "department": "Information Technology", "dateReceived": "2026-01-26", "expirationDate": "", "issuingInstitution": "STI", "academicYear": "SY 2025-2026", "term": "Term 1", "evaluationRating": 4.35, "tags": "Classroom Management, Communication"}`;
     
-    // 1. DEFENSE-PROOF FIX: Force application/json response type
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
       generationConfig: {
@@ -43,7 +49,6 @@ router.post('/extract', upload.single('document'), async (req, res) => {
       }
     });
     
-    // 2. ENTERPRISE RETRY LOGIC
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let result;
     let retries = 3; 
@@ -51,19 +56,18 @@ router.post('/extract', upload.single('document'), async (req, res) => {
     while (retries > 0) {
       try {
         result = await model.generateContent([prompt, filePart]);
-        break; // Success! Break the loop.
+        break; 
       } catch (apiError) {
         if (apiError.status === 503 && retries > 1) {
           console.warn(`[Extraction API 503] Server overloaded. Retrying... (${retries - 1} attempts left)`);
-          await delay(2500); // Wait 2.5 seconds
+          await delay(2500); 
           retries--;
         } else {
-          throw apiError; // Out of retries or a different error
+          throw apiError; 
         }
       }
     }
     
-    // 3. SAFE PARSING
     const rawText = result.response.text();
     let extractedData;
     
@@ -99,14 +103,11 @@ router.get('/pending', async (req, res) => {
 // --------------------------------------------------------
 router.get('/approved', async (req, res) => {
   try {
-    // 1. Fetch only ACTIVE users from the User collection
     const activeUsers = await User.find({ isArchived: { $ne: true } });
     const activeUserNames = activeUsers.map(u => u.name.toLowerCase());
 
-    // 2. Fetch approved profiles from the Faculty collection
     const approvedProfiles = await Faculty.find({ status: 'approved' }).sort({ createdAt: -1 });
 
-    // 3. SECURITY FILTER: Only return profiles that belong to active users
     const activeApprovedProfiles = approvedProfiles.filter(profile => {
       const fullName = `${profile.firstName} ${profile.lastName}`.toLowerCase();
       return activeUserNames.includes(fullName);
@@ -125,11 +126,11 @@ router.get('/approved', async (req, res) => {
 router.put('/status/:id', async (req, res) => {
   try {
     const { id } = req.params;     
-    const { status } = req.body;   
+    const { status, remarks } = req.body;   // NEW: Destructure remarks
 
     const updatedFaculty = await Faculty.findByIdAndUpdate(
       id, 
-      { status: status }, 
+      { status: status, remarks: remarks || '' }, // NEW: Save remarks to DB
       { new: true } 
     );
 
@@ -168,7 +169,6 @@ router.put('/edit/:id', async (req, res) => {
   }
 });
 
-
 // --------------------------------------------------------
 // ROUTE: AI Candidate Matcher (Aggregated by Active User)
 // --------------------------------------------------------
@@ -180,13 +180,11 @@ router.post('/match', async (req, res) => {
     const User = require('../models/User'); 
     const [candidates, users] = await Promise.all([
       Faculty.find({ status: 'approved' }),
-      // SECURITY FILTER: Only match against active users
       User.find({ isArchived: { $ne: true } }, '-passwordHash')
     ]);
 
     if (candidates.length === 0) return res.status(404).json({ error: "No approved candidates found." });
 
-    // 1. Aggregate candidate data
     const groupedProfiles = candidates.reduce((acc, doc) => {
       const nameKey = `${doc.firstName} ${doc.lastName}`.toUpperCase();
       if (!acc[nameKey]) {
@@ -202,15 +200,13 @@ router.post('/match', async (req, res) => {
 
     const candidateData = Object.values(groupedProfiles).map(profile => {
       const matchedUser = users.find(u => u.name.toLowerCase() === profile.name.toLowerCase());
-      
-      // SECURITY FILTER: If they aren't in the active users list, skip them entirely
       if (!matchedUser) return null;
 
       return {
         id: profile.id, name: profile.name, department: profile.department,
         skills: Array.from(profile.tags), skillRatings: matchedUser?.skillRatings || {}, documents: profile.documents
       };
-    }).filter(Boolean); // Remove the nulls
+    }).filter(Boolean); 
 
     if (candidateData.length === 0) return res.status(404).json({ error: "No active candidates available for matching." });
 
@@ -225,7 +221,6 @@ router.post('/match', async (req, res) => {
       generationConfig: { responseMimeType: "application/json" }
     });
     
-    // --- ENTERPRISE RETRY LOGIC ---
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let result;
     let retries = 3; 
@@ -245,7 +240,6 @@ router.post('/match', async (req, res) => {
       }
     }
     
-    // Parse the strict JSON output
     let matchResults;
     try {
         matchResults = JSON.parse(result.response.text());
@@ -254,7 +248,6 @@ router.post('/match', async (req, res) => {
         return res.status(500).json({ error: "AI returned an unparsable format." });
     }
     
-    // Map results back to the profiles
     const finalMatches = matchResults.map(match => {
       const profile = candidateData.find(c => c.id === match.id);
       if (!profile) return null;
@@ -278,7 +271,6 @@ router.post('/add', upload.single('document'), async (req, res) => {
     let fileUrl = "";
     let aiInput = []; 
 
-    // 1. Cloudinary Upload
     if (req.file) {
       const b64 = Buffer.from(req.file.buffer).toString("base64");
       let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
@@ -289,7 +281,6 @@ router.post('/add', upload.single('document'), async (req, res) => {
       });
       fileUrl = cldRes.secure_url;
 
-      // 2. Gemini Vision Setup
       const filePart = { inlineData: { data: b64, mimeType: req.file.mimetype } };
 
       const prompt = `You are a highly accurate HR data extraction AI. Read the attached STI document.
@@ -308,7 +299,6 @@ router.post('/add', upload.single('document'), async (req, res) => {
       aiInput = [prompt];
     }
 
-    // 3. DEFENSE-PROOF RETRY LOGIC FOR GEMINI
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
       generationConfig: { responseMimeType: "application/json" }
@@ -333,7 +323,6 @@ router.post('/add', upload.single('document'), async (req, res) => {
       }
     }
     
-    // 4. Safe Parsing
     let tagsArray = [];
     try {
       const aiText = result.response.text();
@@ -343,7 +332,6 @@ router.post('/add', upload.single('document'), async (req, res) => {
       console.error("Failed to parse Gemini output in /add route:", parseError);
     }
 
-    // 5. Status & Shadow Provisioning
     const finalStatus = (['hr', 'admin'].includes(uploaderRole) && autoApprove === 'true') ? 'approved' : 'pending';
 
     const fullName = `${firstName} ${lastName}`;
@@ -367,7 +355,6 @@ router.post('/add', upload.single('document'), async (req, res) => {
       await newUser.save();
     }
 
-    // Merge AI tags with any tags passed from the frontend extraction
     let formattedTags = tagsArray;
     if (req.body.tags) {
       let frontendTags = [];
@@ -376,18 +363,27 @@ router.post('/add', upload.single('document'), async (req, res) => {
       } else if (Array.isArray(req.body.tags)) {
         frontendTags = req.body.tags;
       }
-      formattedTags = [...new Set([...formattedTags, ...frontendTags])]; // Deduplicate
+      formattedTags = [...new Set([...formattedTags, ...frontendTags])]; 
     }
 
-    // 6. Save to Database
+    // 6. Save to Database (Mapped with new dynamic UI fields)
     const newFaculty = new Faculty({
       firstName, lastName, department, 
-      documentTitle, documentType, 
+      documentTitle, 
+      documentType, 
       issuingInstitution: req.body.issuingInstitution,
       dateReceived: req.body.dateReceived,
+      expirationDate: req.body.expirationDate,
       documentUrl: fileUrl, 
       tags: formattedTags,
-      status: finalStatus
+      status: finalStatus,
+      
+      academicYear: req.body.academicYear || '',
+      term: req.body.term || '',
+      contractStart: req.body.contractStart || '',
+      contractEnd: req.body.contractEnd || '',
+      intent: req.body.intent || '',
+      offenseType: req.body.offenseType || ''
     });
 
     const savedFaculty = await newFaculty.save();
@@ -439,7 +435,6 @@ router.get('/subjects/:courseCode/faculty', async (req, res) => {
   try {
     const { courseCode } = req.params;
     
-    // Find faculty who are approved AND have this exact course code in their array
     const eligibleFaculty = await Faculty.find({ 
       eligibleSubjects: courseCode,
       status: 'approved' 
@@ -457,12 +452,10 @@ router.get('/subjects/:courseCode/faculty', async (req, res) => {
 // --------------------------------------------------------
 router.get('/seed-subjects', async (req, res) => {
   try {
-    // 1. HARD WIPE: Drop collections entirely to destroy old ghost indexes
     try { await Subject.collection.drop(); } catch (e) {} 
     try { await Program.collection.drop(); } catch (e) {}
     try { await Department.collection.drop(); } catch (e) {}
 
-    // 2. Create Departments based on course prefixes
     const itDept = new Department({ name: "Information Technology" });
     const genEdDept = new Department({ name: "General Education" });
     const peDept = new Department({ name: "Physical Education" });
@@ -473,13 +466,10 @@ router.get('/seed-subjects', async (req, res) => {
     await peDept.save();
     await nstpDept.save();
 
-    // 3. Create the Program (Owned by IT)
     const bsitProg = new Program({ name: "BSIT", departmentId: itDept._id });
     await bsitProg.save();
 
-    // 4. Define Subjects Mapping
     const subjectsData = [
-      // Term 1
       { courseCode: "CITE1004", subjectName: "Introduction to Computing", deptId: itDept._id },
       { courseCode: "CITE1003", subjectName: "Computer Programming 1", deptId: itDept._id },
       { courseCode: "GEDC1002", subjectName: "The Contemporary World", deptId: genEdDept._id },
@@ -490,7 +480,6 @@ router.get('/seed-subjects', async (req, res) => {
       { courseCode: "PHED1005", subjectName: "P.E./PATHFIT 1: Movement Competency Training", deptId: peDept._id },
       { courseCode: "GEDC1008", subjectName: "Understanding the Self", deptId: genEdDept._id },
       
-      // Term 2
       { courseCode: "CITE1006", subjectName: "Computer Programming 2", deptId: itDept._id },
       { courseCode: "COSC1002", subjectName: "Discrete Structures 1 (Discrete Mathematics)", deptId: itDept._id },
       { courseCode: "GEDC1010", subjectName: "Art Appreciation", deptId: genEdDept._id },
@@ -502,7 +491,6 @@ router.get('/seed-subjects', async (req, res) => {
       { courseCode: "INTE1006", subjectName: "Systems Administration and Maintenance", deptId: itDept._id }
     ];
 
-    // 5. Save all subjects
     for (const sub of subjectsData) {
       const newSubject = new Subject({
         courseCode: sub.courseCode,
@@ -513,7 +501,6 @@ router.get('/seed-subjects', async (req, res) => {
       await newSubject.save();
     }
 
-    // 6. CLEAN SLATE: Remove all course eligibilities from everyone
     await Faculty.updateMany(
       {}, 
       { $set: { eligibleSubjects: [] } } 
@@ -535,14 +522,11 @@ router.get('/seed-users', async (req, res) => {
   try {
     const bcrypt = require('bcryptjs');
 
-    // 1. HARD WIPE: Eradicate all existing users
     await User.deleteMany({});
 
-    // 2. Prepare distinct hashed passwords
     const defaultHash = await bcrypt.hash("password123", 10);
     const adminHash = await bcrypt.hash("admin123", 10);
 
-    // 3. Define the exact accounts requested
     const defenseUsers = [
       { name: "Faculty Demo", username: "faculty.demo", role: "faculty", passwordHash: defaultHash },
       { name: "Academic Head", username: "acad.head", role: "academic_head", passwordHash: defaultHash },
@@ -550,7 +534,6 @@ router.get('/seed-users', async (req, res) => {
       { name: "System Admin", username: "admin.user", role: "admin", passwordHash: adminHash }
     ];
 
-    // 4. Inject the clean slate users
     await User.insertMany(defenseUsers);
 
     res.status(200).json({ 
@@ -567,7 +550,6 @@ router.get('/seed-users', async (req, res) => {
 // --------------------------------------------------------
 router.get('/wipe-faculty', async (req, res) => {
   try {
-    // Drops the collection to clear all extracted profiles and ghost indexes
     try { await Faculty.collection.drop(); } catch (e) {} 
     
     res.status(200).json({ 

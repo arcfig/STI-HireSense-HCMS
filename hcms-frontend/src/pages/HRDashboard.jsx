@@ -4,9 +4,17 @@ function HRDashboard({ user }) {
   const [pendingFaculty, setPendingFaculty] = useState([]);
   const [message, setMessage] = useState('');
   
-  // NEW: State to track if we are currently editing a document
+  // State to track editing
   const [editingDoc, setEditingDoc] = useState(null); 
   const [editFormData, setEditFormData] = useState({});
+
+  // NEW: State to manage the confirmation modal and remarks
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    facultyId: null,
+    newStatus: '',
+    remarks: ''
+  });
 
   const fetchPending = async () => {
     try {
@@ -22,28 +30,47 @@ function HRDashboard({ user }) {
     fetchPending();
   }, []);
 
-  const handleUpdateStatus = async (id, newStatus) => {
+  // --- NEW: MODAL HANDLERS ---
+  const openConfirmDialog = (id, status) => {
+    setConfirmDialog({
+      isOpen: true,
+      facultyId: id,
+      newStatus: status,
+      remarks: '' // Reset remarks on open
+    });
+  };
+
+  const closeConfirmDialog = () => {
+    setConfirmDialog({ isOpen: false, facultyId: null, newStatus: '', remarks: '' });
+  };
+
+  // --- UPDATED: STATUS UPDATE WITH REMARKS ---
+  const executeUpdateStatus = async () => {
+    const { facultyId, newStatus, remarks } = confirmDialog;
+
     try {
-      const response = await fetch(`http://localhost:5000/api/faculty/status/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/faculty/status/${facultyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus, remarks: remarks })
       });
 
       if (response.ok) {
-        setMessage(`Credential successfully ${newStatus}!`);
+        setMessage(`Document successfully ${newStatus}!`);
         fetchPending(); 
+        closeConfirmDialog();
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage('Failed to update status.');
+        closeConfirmDialog();
       }
     } catch (error) {
       setMessage('Server error.');
+      closeConfirmDialog();
     }
   };
 
-  // --- NEW: EDIT FUNCTIONS ---
-  // 1. When they click the Edit button, populate the form
+  // --- EDIT FUNCTIONS ---
   const startEditing = (faculty) => {
     setEditingDoc(faculty._id);
     setEditFormData({
@@ -51,17 +78,15 @@ function HRDashboard({ user }) {
       lastName: faculty.lastName,
       department: faculty.department,
       documentTitle: faculty.documentTitle || '',
-      documentType: faculty.documentType || 'Seminar/Training Certificate',
-      tags: faculty.tags.join(', ') // Convert array to string for easy editing
+      documentType: faculty.documentType || 'Certificate',
+      tags: faculty.tags ? faculty.tags.join(', ') : '' 
     });
   };
 
-  // 2. Handle typing in the edit form
   const handleEditChange = (e) => {
     setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
   };
 
-  // 3. Submit the changes to the backend
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -73,8 +98,8 @@ function HRDashboard({ user }) {
 
       if (response.ok) {
         setMessage('Document details updated successfully!');
-        setEditingDoc(null); // Close the edit form
-        fetchPending(); // Refresh the table to show new data
+        setEditingDoc(null); 
+        fetchPending(); 
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage('Failed to save edits.');
@@ -85,17 +110,58 @@ function HRDashboard({ user }) {
   };
 
   return (
-    <div>
+    <div className="position-relative">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="fw-bold text-dark mb-1">HR Management Dashboard</h2>
-          <span className="text-muted">Review, edit, and verify pending faculty credentials.</span>
+          <span className="text-muted">Review, edit, and verify pending faculty documents.</span>
         </div>
       </div>
 
       {message && (
         <div className={`alert ${message.includes('successfully') ? 'alert-success' : 'alert-danger'} py-2 shadow-sm border-0`}>
           <i className="bi bi-info-circle-fill me-2"></i> {message}
+        </div>
+      )}
+
+      {/* --- CONFIRMATION MODAL --- */}
+      {confirmDialog.isOpen && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className={`modal-header text-white ${confirmDialog.newStatus === 'approved' ? 'bg-success' : 'bg-danger'}`}>
+                <h5 className="modal-title fw-bold">
+                  {confirmDialog.newStatus === 'approved' ? 'Confirm Approval' : 'Confirm Rejection'}
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={closeConfirmDialog}></button>
+              </div>
+              <div className="modal-body p-4">
+                <p className="mb-3 text-dark">
+                  Are you sure you want to mark this document as <strong>{confirmDialog.newStatus}</strong>?
+                </p>
+                <div className="mb-2">
+                  <label className="form-label fw-bold text-muted small text-uppercase">Administrative Remarks (Optional)</label>
+                  <textarea 
+                    className="form-control bg-light" 
+                    rows="3" 
+                    placeholder={confirmDialog.newStatus === 'rejected' ? "Please state the reason for rejection..." : "Add any internal notes here..."}
+                    value={confirmDialog.remarks}
+                    onChange={(e) => setConfirmDialog({ ...confirmDialog, remarks: e.target.value })}
+                  ></textarea>
+                </div>
+              </div>
+              <div className="modal-footer bg-light">
+                <button type="button" className="btn btn-outline-secondary fw-bold" onClick={closeConfirmDialog}>Cancel</button>
+                <button 
+                  type="button" 
+                  className={`btn fw-bold px-4 ${confirmDialog.newStatus === 'approved' ? 'btn-success' : 'btn-danger'}`} 
+                  onClick={executeUpdateStatus}
+                >
+                  Confirm {confirmDialog.newStatus === 'approved' ? 'Approval' : 'Rejection'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -128,12 +194,13 @@ function HRDashboard({ user }) {
               </div>
               <div className="col-md-6 mb-3">
                 <label className="form-label fw-semibold text-secondary">Document Type</label>
-                <select className="form-select bg-light" name="documentType" value={editFormData.documentType} onChange={handleEditChange} required>
-                  <option value="Seminar/Training Certificate">Seminar/Training Certificate</option>
-                  <option value="Degree/Transcript">Degree/Transcript</option>
-                  <option value="Professional License">Professional License</option>
-                  <option value="Award/Recognition">Award/Recognition</option>
-                  <option value="Other">Other</option>
+                <select className="form-select bg-light border-primary" name="documentType" value={editFormData.documentType} onChange={handleEditChange} required>
+                  <option value="201 File">201 File</option>
+                  <option value="Certificate">Certificate</option>
+                  <option value="Faculty Evaluation">Faculty Evaluation</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Letter of Intent">Letter of Intent</option>
+                  <option value="Non-Renewal Contract">Non-Renewal Contract</option>
                 </select>
               </div>
             </div>
@@ -163,8 +230,8 @@ function HRDashboard({ user }) {
                 <tr>
                   <th className="py-3 px-4 fw-semibold border-bottom-0">Faculty Member</th>
                   <th className="py-3 px-4 fw-semibold border-bottom-0">Document Submitted</th>
-                  <th className="py-3 px-4 fw-semibold border-bottom-0">AI Extracted Skills</th>
-                  <th className="py-3 px-4 fw-semibold border-bottom-0 text-center">Actions</th>
+                  <th className="py-3 px-4 fw-semibold border-bottom-0">AI Extracted Details</th>
+                  <th className="py-3 px-4 fw-semibold border-bottom-0 text-center" style={{ width: '180px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -184,24 +251,28 @@ function HRDashboard({ user }) {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="d-flex flex-wrap gap-1">
-                        {faculty.tags.map((tag, index) => (
-                          <span key={index} className="badge bg-light text-dark border">{tag}</span>
-                        ))}
-                      </div>
+                      {faculty.tags && faculty.tags.length > 0 ? (
+                        <div className="d-flex flex-wrap gap-1">
+                          {faculty.tags.map((tag, index) => (
+                            <span key={index} className="badge bg-light text-dark border">{tag}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted small fst-italic">No tags extracted</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {/* NEW: Added the Edit Button inside the actions column */}
                       <div className="d-flex justify-content-center gap-2 mb-2">
                         <button onClick={() => startEditing(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100">
                           <i className="bi bi-pencil-square me-1"></i> Edit Data
                         </button>
                       </div>
                       <div className="d-flex justify-content-center gap-2">
-                        <button onClick={() => handleUpdateStatus(faculty._id, 'approved')} className="btn btn-sm btn-success fw-bold px-3 shadow-sm w-50">
+                        {/* CHANGED: Now triggers the modal instead of updating directly */}
+                        <button onClick={() => openConfirmDialog(faculty._id, 'approved')} className="btn btn-sm btn-success fw-bold px-3 shadow-sm w-50" title="Approve">
                           <i className="bi bi-check-lg"></i>
                         </button>
-                        <button onClick={() => handleUpdateStatus(faculty._id, 'rejected')} className="btn btn-sm btn-outline-danger fw-bold px-3 w-50">
+                        <button onClick={() => openConfirmDialog(faculty._id, 'rejected')} className="btn btn-sm btn-outline-danger fw-bold px-3 w-50" title="Reject">
                           <i className="bi bi-x-lg"></i>
                         </button>
                       </div>
