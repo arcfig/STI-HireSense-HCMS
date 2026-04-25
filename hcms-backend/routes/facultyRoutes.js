@@ -16,7 +16,7 @@ const { verifyToken, requireRole } = require('../middleware/authMiddleware');
 // --------------------------------------------------------
 // ROUTE: AI Document Extraction (Auto-Fill) (Secured: All logged-in users)
 // --------------------------------------------------------
-router.post('/extract', verifyToken, upload.single('document'), async (req, res) => {
+router.post('/extract', upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No document provided for extraction." });

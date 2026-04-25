@@ -4,15 +4,25 @@ function ManageUsers({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
 
+  // 1. Retrieve the token once at the top
+  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const token = savedUser?.token;
+
   useEffect(() => {
     const fetchUsers = async () => {
-      try {
-        const storedUser = JSON.parse(localStorage.getItem('hireSenseUser')) || {};
-        const currentRole = storedUser.role || 'faculty';
+      // Safety check: prevent unauthorized fetch attempts
+      if (!token) {
+        console.error("No authentication token found.");
+        return;
+      }
 
+      try {
+        // --- UPDATED: FETCH WITH TOKEN ---
         const response = await fetch('http://localhost:5000/api/users/active', {
+          method: 'GET',
           headers: {
-            'X-User-Role': currentRole
+            'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+            'Content-Type': 'application/json'
           }
         });
         
@@ -31,13 +41,17 @@ function ManageUsers({ currentUser }) {
     };
 
     fetchUsers();
-  }, []);
+  }, [token]); // Added token as a dependency
 
   const handleRoleChange = async (userId, newRole) => {
     try {
+      // --- UPDATED: PUT WITH TOKEN ---
       const response = await fetch(`http://localhost:5000/api/users/${userId}/role`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({ role: newRole })
       });
 
@@ -46,12 +60,15 @@ function ManageUsers({ currentUser }) {
         
         // Refresh active users
         const fetchUpdatedUsers = async () => {
-           const storedUser = JSON.parse(localStorage.getItem('hireSenseUser')) || {};
-           const response = await fetch('http://localhost:5000/api/users/active', {
-             headers: { 'X-User-Role': storedUser.role || 'faculty' }
+           const refreshResponse = await fetch('http://localhost:5000/api/users/active', {
+             method: 'GET',
+             headers: { 
+               'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+               'Content-Type': 'application/json'
+             }
            });
-           const data = await response.json();
-           if (response.ok && Array.isArray(data)) setUsers(data);
+           const data = await refreshResponse.json();
+           if (refreshResponse.ok && Array.isArray(data)) setUsers(data);
         };
         fetchUpdatedUsers();
         setTimeout(() => setMessage({ text: '', type: '' }), 3000);
@@ -71,7 +88,14 @@ function ManageUsers({ currentUser }) {
     if (!window.confirm(`Are you sure you want to archive the account for ${username}?`)) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${userId}/archive`, { method: 'PUT' });
+      // --- UPDATED: PUT WITH TOKEN ---
+      const response = await fetch(`http://localhost:5000/api/users/${userId}/archive`, { 
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (response.ok) {
         setMessage({ text: 'User account successfully archived.', type: 'success' });

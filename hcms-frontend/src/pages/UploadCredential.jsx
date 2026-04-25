@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 
 const UploadCredential = () => {
-  // Correctly parse the consolidated session object
+  // 1. Extract the token and role securely from session
   const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
   const userRole = savedUser.role || 'faculty';
+  const token = savedUser.token;
   
   // Helper to check if user is a Head or Admin
   const isHeadOrAdmin = ['admin', 'academic_head', 'program_head'].includes(userRole);
@@ -15,7 +16,7 @@ const UploadCredential = () => {
   const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
 
   // Expanded State to hold all possible fields
-const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState({
     documentType: 'Certificate',
     documentTitle: '',
     firstName: '',
@@ -57,6 +58,12 @@ const [formData, setFormData] = useState({
 
   const handleAutoFill = async () => {
     if (!selectedFile) return;
+    
+    if (!token) {
+      setStatusMessage({ type: 'danger', text: 'Authentication token missing. Please sign in again.' });
+      return;
+    }
+
     setIsExtracting(true);
     setStatusMessage({ type: 'info', text: 'Extracting data with AI...' });
 
@@ -64,8 +71,12 @@ const [formData, setFormData] = useState({
     extractPayload.append('document', selectedFile);
 
     try {
+      // --- UPDATED: FETCH WITH TOKEN (No Content-Type for FormData) ---
       const response = await fetch('http://localhost:5000/api/faculty/extract', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: extractPayload
       });
       const data = await response.json();
@@ -83,13 +94,13 @@ const [formData, setFormData] = useState({
           expirationDate: data.expirationDate || prev.expirationDate,
           academicYear: data.academicYear || prev.academicYear,
           term: data.term || prev.term,
-          evaluationRating: data.evaluationRating || prev.evaluationRating // <-- NEW: Catch AI output
+          evaluationRating: data.evaluationRating || prev.evaluationRating
         }));
         
         setExtractedTags(data.tags || "");
         setStatusMessage({ type: 'success', text: 'Data extracted successfully. Please review before submitting.' });
       } else {
-        setStatusMessage({ type: 'danger', text: data.message || 'Failed to extract data.' });
+        setStatusMessage({ type: 'danger', text: data.error || data.message || 'Failed to extract data.' });
       }
     } catch (error) {
       setStatusMessage({ type: 'danger', text: 'Network error during extraction.' });
@@ -102,6 +113,11 @@ const [formData, setFormData] = useState({
     e.preventDefault();
     if (!selectedFile) {
       setStatusMessage({ type: 'danger', text: 'A document file is required.' });
+      return;
+    }
+
+    if (!token) {
+      setStatusMessage({ type: 'danger', text: 'Authentication token missing. Please sign in again.' });
       return;
     }
 
@@ -122,8 +138,12 @@ const [formData, setFormData] = useState({
     }
 
     try {
+      // --- UPDATED: FETCH WITH TOKEN (No Content-Type for FormData) ---
       const response = await fetch('http://localhost:5000/api/faculty/add', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: finalPayload
       });
       const data = await response.json();
@@ -134,7 +154,7 @@ const [formData, setFormData] = useState({
         setFormData(prev => ({ ...prev, documentTitle: '', issuingInstitution: '', dateReceived: '', expirationDate: '', academicYear: '', term: '', contractStart: '', contractEnd: '', offenseType: '' }));
         setSelectedFile(null);
       } else {
-        setStatusMessage({ type: 'danger', text: data.message || 'Error saving to database.' });
+        setStatusMessage({ type: 'danger', text: data.error || data.message || 'Error saving to database.' });
       }
     } catch (error) {
       setStatusMessage({ type: 'danger', text: 'Network error during submission.' });
@@ -234,7 +254,7 @@ const [formData, setFormData] = useState({
                 </>
               )}
 
-{/* 2. FACULTY EVALUATION FIELDS */}
+              {/* 2. FACULTY EVALUATION FIELDS */}
               {formData.documentType === 'Faculty Evaluation' && (
                 <>
                   <div className="row mb-3">
@@ -251,7 +271,6 @@ const [formData, setFormData] = useState({
                       </select>
                     </div>
                   </div>
-                  {/* NEW: Evaluation Rating Input */}
                   <div className="mb-3">
                     <label className="form-label text-muted">Overall Evaluation Rating</label>
                     <input type="number" step="0.01" min="1" max="5" className="form-control border-primary" name="evaluationRating" placeholder="e.g., 4.35" value={formData.evaluationRating} onChange={handleInputChange} />

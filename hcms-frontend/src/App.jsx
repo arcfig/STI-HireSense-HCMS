@@ -103,10 +103,17 @@ function App() {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   useEffect(() => {
-    if (user) {
+    if (user && user.token) {
       const fetchNotifications = async () => {
         try {
-          const res = await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}`);
+          // --- UPDATED: FETCH WITH TOKEN ---
+          const res = await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${user.token}`,
+              'Content-Type': 'application/json'
+            }
+          });
           if (res.ok) {
             const data = await res.json();
             setNotifications(data);
@@ -115,6 +122,7 @@ function App() {
           console.error("Failed to fetch notifications:", error);
         }
       };
+      
       fetchNotifications();
       // Optional polling every 30 seconds
       const interval = setInterval(fetchNotifications, 30000);
@@ -137,8 +145,18 @@ function App() {
     setShowNotifs(!showNotifs);
     if (!showNotifs && unreadCount > 0) {
       try {
-        await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}/read`, { method: 'PUT' });
-        setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+        // --- UPDATED: PUT WITH TOKEN ---
+        const res = await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}/read`, { 
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${user.token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (res.ok) {
+          setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+        }
       } catch (error) {
         console.error("Failed to mark notifications as read:", error);
       }

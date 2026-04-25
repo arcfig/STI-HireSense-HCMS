@@ -18,46 +18,64 @@ const MyPortfolio = ({ user }) => {
   // Evaluation Timeline State
   const [selectedEvalTerm, setSelectedEvalTerm] = useState('Overall');
 
+  // NEW: Retrieve token and identity securely from session
+  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const token = savedUser?.token;
+  const storedIdentity = user?.name || savedUser?.name;
+
   // 2. Fetch Data
   useEffect(() => {
     const fetchPortfolio = async () => {
+      // Safety check: prevent unauthorized fetch attempts
+      if (!token) {
+        console.error("No authentication token found.");
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch('http://localhost:5000/api/faculty/approved');
-        const data = await response.json();
-        
-        let storedIdentity = user?.name;
-        if (!storedIdentity) {
-          const localUser = JSON.parse(localStorage.getItem('hireSenseUser'));
-          storedIdentity = localUser?.name;
-        }
-
-        if (storedIdentity && data && data.length > 0) {
-          
-          // NEW: Heuristic Name Normalizer
-          const normalizeForMatch = (nameStr) => {
-            const words = nameStr.trim().toLowerCase().split(/\s+/);
-            if (words.length < 2) return nameStr.toLowerCase();
-            return `${words[0]}_${words[words.length - 1]}`; 
-          };
-
-          const targetIdentityKey = normalizeForMatch(storedIdentity);
-
-          const filteredDocs = data.filter(doc => {
-            const docFirstWord = doc.firstName.trim().toLowerCase().split(/\s+/)[0];
-            const docLastWords = doc.lastName.trim().toLowerCase().split(/\s+/);
-            const docLastWord = docLastWords[docLastWords.length - 1];
-            const docKey = `${docFirstWord}_${docLastWord}`;
-            
-            return docKey === targetIdentityKey;
-          });
-
-          if (filteredDocs.length > 0) {
-            setFacultyData(filteredDocs[0]); 
-            setUserDocuments(filteredDocs);  
-          } else {
-            setFacultyData(null); 
-            setUserDocuments([]);
+        // UPDATED: Fetch with Authorization Header
+        const response = await fetch('http://localhost:5000/api/faculty/approved', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+
+          if (storedIdentity && data && data.length > 0) {
+            
+            // Heuristic Name Normalizer
+            const normalizeForMatch = (nameStr) => {
+              const words = nameStr.trim().toLowerCase().split(/\s+/);
+              if (words.length < 2) return nameStr.toLowerCase();
+              return `${words[0]}_${words[words.length - 1]}`; 
+            };
+
+            const targetIdentityKey = normalizeForMatch(storedIdentity);
+
+            const filteredDocs = data.filter(doc => {
+              const docFirstWord = doc.firstName.trim().toLowerCase().split(/\s+/)[0];
+              const docLastWords = doc.lastName.trim().toLowerCase().split(/\s+/);
+              const docLastWord = docLastWords[docLastWords.length - 1];
+              const docKey = `${docFirstWord}_${docLastWord}`;
+              
+              return docKey === targetIdentityKey;
+            });
+
+            if (filteredDocs.length > 0) {
+              setFacultyData(filteredDocs[0]); 
+              setUserDocuments(filteredDocs);  
+            } else {
+              setFacultyData(null); 
+              setUserDocuments([]);
+            }
+          }
+        } else {
+          console.error("Backend refused the request. Token may be invalid or expired.");
         }
       } catch (error) {
         console.error("Error fetching portfolio:", error);
@@ -67,7 +85,7 @@ const MyPortfolio = ({ user }) => {
     };
 
     fetchPortfolio();
-  }, [user]); 
+  }, [user, token, storedIdentity]); // Added token and identity to dependencies
 
   // 3. UI Handlers
   const openViewer = (url, title) => {
@@ -263,26 +281,26 @@ const MyPortfolio = ({ user }) => {
         </div>
       </div>
 
-{/* TABBED CREDENTIALS SECTION */}
+      {/* TABBED CREDENTIALS SECTION */}
       <h5 className="text-secondary mb-3 mt-5"><i className="bi bi-folder2-open me-2"></i>Document Portfolio</h5>
       
       <ul className="nav nav-tabs mb-4">
         {Object.keys(categories).map(tabName => (
           <li className="nav-item" key={tabName}>
             <button 
-                        // The 'active' class string is intentionally removed here to prevent CSS conflicts
-                        className={`nav-link ${activeTab === tabName ? 'border-bottom-0 shadow-sm' : 'border-0'}`}
-                        onClick={() => setActiveTab(tabName)}
-                        style={{ 
-                          backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
-                          color: activeTab === tabName ? '#0d6efd' : '#6c757d',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <span className="fw-bold">
-                          {tabName} ({categories[tabName].length})
-                        </span>
-                      </button>
+              // The 'active' class string is intentionally removed here to prevent CSS conflicts
+              className={`nav-link ${activeTab === tabName ? 'border-bottom-0 shadow-sm' : 'border-0'}`}
+              onClick={() => setActiveTab(tabName)}
+              style={{ 
+                backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
+                color: activeTab === tabName ? '#0d6efd' : '#6c757d',
+                cursor: 'pointer'
+              }}
+            >
+              <span className="fw-bold">
+                {tabName} ({categories[tabName].length})
+              </span>
+            </button>
           </li>
         ))}
       </ul>

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const FacultyPortal = ({ user }) => {
-  const role = user?.role || localStorage.getItem('role') || 'faculty';
-  const name = user?.name || localStorage.getItem('name') || 'User';
+  const storedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const token = storedUser?.token;
+  const role = user?.role || storedUser?.role || 'faculty';
+  const name = user?.name || storedUser?.name || 'User';
+  
   const isHeadOrAdmin = ['admin', 'academic_head', 'program_head'].includes(role);
 
-  // Analytics State
   const [metrics, setMetrics] = useState({
     admin: { totalFaculty: 0, pendingApprovals: 0, totalSkills: 0 },
     faculty: { docCount: 0, skillCount: 0, rating: 'N/A' }
@@ -15,53 +17,66 @@ const FacultyPortal = ({ user }) => {
 
   useEffect(() => {
     const fetchAnalytics = async () => {
+      if (!token) {
+        console.error("No authentication token found.");
+        setLoading(false);
+        return;
+      }
+
       try {
-        const [approvedRes, pendingRes] = await Promise.all([
-          fetch('http://localhost:5000/api/faculty/approved'),
-          fetch('http://localhost:5000/api/faculty/pending')
-        ]);
+        const headers = {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        };
 
-        const approvedData = await approvedRes.json();
-        const pendingData = await pendingRes.json();
+        // Fetch approved documents (Accessible by all roles)
+        const approvedRes = await fetch('http://localhost:5000/api/faculty/approved', { headers });
+        
+        if (approvedRes.ok) {
+          const approvedData = await approvedRes.json();
 
-        if (isHeadOrAdmin) {
-          // Calculate Admin Macro-Metrics
-          const uniqueFaculty = new Set(approvedData.map(doc => `${doc.firstName} ${doc.lastName}`.toLowerCase())).size;
-          const allSkills = new Set(approvedData.flatMap(doc => doc.tags || [])).size;
-          
-          setMetrics(prev => ({
-            ...prev,
-            admin: {
-              totalFaculty: uniqueFaculty,
-              pendingApprovals: pendingData.length || 0,
-              totalSkills: allSkills
+          if (isHeadOrAdmin) {
+            // Fetch pending documents ONLY if user is an Admin or Head
+            const pendingRes = await fetch('http://localhost:5000/api/faculty/pending', { headers });
+            const pendingData = pendingRes.ok ? await pendingRes.json() : [];
+
+            const uniqueFaculty = new Set(approvedData.map(doc => `${doc.firstName} ${doc.lastName}`.toLowerCase())).size;
+            const allSkills = new Set(approvedData.flatMap(doc => doc.tags || [])).size;
+            
+            setMetrics(prev => ({
+              ...prev,
+              admin: {
+                totalFaculty: uniqueFaculty,
+                pendingApprovals: pendingData.length || 0,
+                totalSkills: allSkills
+              }
+            }));
+          } else {
+            // Calculate Faculty Micro-Metrics using only the approved data
+            const targetIdentity = name.toLowerCase().replace(/\s+/g, '');
+            const myDocs = approvedData.filter(doc => {
+              const docName = `${doc.firstName} ${doc.lastName}`.toLowerCase().replace(/\s+/g, '');
+              return docName === targetIdentity;
+            });
+
+            const mySkills = new Set(myDocs.flatMap(doc => doc.tags || [])).size;
+            
+            const evals = myDocs.filter(d => d.documentType === 'Faculty Evaluation' && d.evaluationRating);
+            let avgRating = 'N/A';
+            if (evals.length > 0) {
+              const sum = evals.reduce((acc, curr) => acc + curr.evaluationRating, 0);
+              avgRating = (sum / evals.length).toFixed(2);
             }
-          }));
-        } else {
-          // Calculate Faculty Micro-Metrics
-          const targetIdentity = name.toLowerCase().replace(/\s+/g, '');
-          const myDocs = approvedData.filter(doc => {
-            const docName = `${doc.firstName} ${doc.lastName}`.toLowerCase().replace(/\s+/g, '');
-            return docName === targetIdentity;
-          });
 
-          const mySkills = new Set(myDocs.flatMap(doc => doc.tags || [])).size;
-          
-          const evals = myDocs.filter(d => d.documentType === 'Faculty Evaluation' && d.evaluationRating);
-          let avgRating = 'N/A';
-          if (evals.length > 0) {
-            const sum = evals.reduce((acc, curr) => acc + curr.evaluationRating, 0);
-            avgRating = (sum / evals.length).toFixed(2);
+            setMetrics(prev => ({
+              ...prev,
+              faculty: {
+                docCount: myDocs.length,
+                skillCount: mySkills,
+                rating: avgRating
+              }
+            }));
           }
-
-          setMetrics(prev => ({
-            ...prev,
-            faculty: {
-              docCount: myDocs.length,
-              skillCount: mySkills,
-              rating: avgRating
-            }
-          }));
         }
       } catch (error) {
         console.error("Failed to fetch dashboard analytics:", error);
@@ -71,12 +86,10 @@ const FacultyPortal = ({ user }) => {
     };
 
     fetchAnalytics();
-  }, [isHeadOrAdmin, name]);
+  }, [isHeadOrAdmin, name, token]);
 
   return (
     <div className="container mt-2">
-      
-      {/* Welcome Banner */}
       <div className="card shadow-sm border-0 mb-4 bg-primary text-white" style={{ background: 'linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%)' }}>
         <div className="card-body p-4 d-flex justify-content-between align-items-center">
           <div>
@@ -96,11 +109,9 @@ const FacultyPortal = ({ user }) => {
         </div>
       ) : (
         <>
-          {/* --- ANALYTICS ROW --- */}
           <div className="row g-4 mb-5">
             {isHeadOrAdmin ? (
               <>
-                {/* Admin Metrics */}
                 <div className="col-md-4">
                   <div className="card shadow-sm border-0 h-100 border-bottom border-primary border-4">
                     <div className="card-body p-4">
@@ -137,7 +148,6 @@ const FacultyPortal = ({ user }) => {
               </>
             ) : (
               <>
-                {/* Faculty Metrics */}
                 <div className="col-md-4">
                   <div className="card shadow-sm border-0 h-100 border-bottom border-primary border-4">
                     <div className="card-body p-4">
@@ -175,11 +185,8 @@ const FacultyPortal = ({ user }) => {
             )}
           </div>
 
-          {/* --- QUICK ACTIONS ROW --- */}
           <h5 className="text-secondary fw-bold mb-3">Quick Actions</h5>
           <div className="row g-4">
-            
-            {/* Dynamic Left Action */}
             <div className="col-md-6">
               {isHeadOrAdmin ? (
                 <div className="card h-100 border-0 bg-white shadow-sm hover-lift transition-all">
@@ -210,7 +217,6 @@ const FacultyPortal = ({ user }) => {
               )}
             </div>
 
-            {/* Universal Right Action */}
             <div className="col-md-6">
               <div className="card h-100 border-0 bg-white shadow-sm hover-lift transition-all">
                 <div className="card-body p-4 d-flex align-items-center">
@@ -225,7 +231,6 @@ const FacultyPortal = ({ user }) => {
                 </div>
               </div>
             </div>
-
           </div>
         </>
       )}
