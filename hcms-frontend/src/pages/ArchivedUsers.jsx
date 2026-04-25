@@ -4,15 +4,32 @@ const ArchivedUsers = () => {
   const [archivedUsers, setArchivedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. Retrieve the token once at the top
+  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const token = savedUser?.token;
+
   useEffect(() => {
     fetchArchivedUsers();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const fetchArchivedUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/users/archived');
-      const data = await response.json();
-      setArchivedUsers(data);
+      // --- UPDATED: FETCH WITH TOKEN ---
+      const response = await fetch('http://localhost:5000/api/users/archived', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setArchivedUsers(data);
+      } else {
+        console.error("Backend refused the request. Token may be invalid or expired.");
+      }
     } catch (error) {
       console.error("Error fetching archived users:", error);
     } finally {
@@ -22,11 +39,19 @@ const ArchivedUsers = () => {
 
   const handleRestore = async (userId) => {
     try {
+      // --- UPDATED: PUT WITH TOKEN ---
       const response = await fetch(`http://localhost:5000/api/users/${userId}/restore`, {
-        method: 'PUT'
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json'
+        }
       });
+      
       if (response.ok) {
         setArchivedUsers(archivedUsers.filter(user => user._id !== userId));
+      } else {
+        console.error("Failed to restore account. Backend refused the request.");
       }
     } catch (error) {
       console.error("Error restoring user:", error);

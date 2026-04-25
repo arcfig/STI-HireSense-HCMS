@@ -32,10 +32,23 @@ const MyPortfolio = ({ user }) => {
         }
 
         if (storedIdentity && data && data.length > 0) {
+          
+          // NEW: Heuristic Name Normalizer
+          const normalizeForMatch = (nameStr) => {
+            const words = nameStr.trim().toLowerCase().split(/\s+/);
+            if (words.length < 2) return nameStr.toLowerCase();
+            return `${words[0]}_${words[words.length - 1]}`; 
+          };
+
+          const targetIdentityKey = normalizeForMatch(storedIdentity);
+
           const filteredDocs = data.filter(doc => {
-            const docFullName = `${doc.firstName} ${doc.lastName}`.toLowerCase().replace(/\s+/g, '');
-            const targetIdentity = storedIdentity.toLowerCase().replace(/\s+/g, '');
-            return docFullName === targetIdentity;
+            const docFirstWord = doc.firstName.trim().toLowerCase().split(/\s+/)[0];
+            const docLastWords = doc.lastName.trim().toLowerCase().split(/\s+/);
+            const docLastWord = docLastWords[docLastWords.length - 1];
+            const docKey = `${docFirstWord}_${docLastWord}`;
+            
+            return docKey === targetIdentityKey;
           });
 
           if (filteredDocs.length > 0) {
@@ -257,21 +270,19 @@ const MyPortfolio = ({ user }) => {
         {Object.keys(categories).map(tabName => (
           <li className="nav-item" key={tabName}>
             <button 
-              className={`nav-link ${activeTab === tabName ? 'active border-bottom-0' : 'border-0'}`}
-              onClick={() => setActiveTab(tabName)}
-              style={{ 
-                backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
-                cursor: 'pointer'
-              }}
-            >
-              {/* Wrapping text in a span bypasses conflicting .nav-link CSS overrides */}
-              <span 
-                className="fw-bold" 
-                style={{ color: activeTab === tabName ? '#0d6efd' : '#6c757d' }}
-              >
-                {tabName} {tabName !== 'Timeline' && `(${categories[tabName].length})`}
-              </span>
-            </button>
+                        // The 'active' class string is intentionally removed here to prevent CSS conflicts
+                        className={`nav-link ${activeTab === tabName ? 'border-bottom-0 shadow-sm' : 'border-0'}`}
+                        onClick={() => setActiveTab(tabName)}
+                        style={{ 
+                          backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
+                          color: activeTab === tabName ? '#0d6efd' : '#6c757d',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <span className="fw-bold">
+                          {tabName} ({categories[tabName].length})
+                        </span>
+                      </button>
           </li>
         ))}
       </ul>

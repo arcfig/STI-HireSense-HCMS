@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 
 const UploadCredential = () => {
-  const userRole = localStorage.getItem('role') || 'faculty';
+  // Correctly parse the consolidated session object
+  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const userRole = savedUser.role || 'faculty';
   
   // Helper to check if user is a Head or Admin
   const isHeadOrAdmin = ['admin', 'academic_head', 'program_head'].includes(userRole);
@@ -13,12 +15,12 @@ const UploadCredential = () => {
   const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
 
   // Expanded State to hold all possible fields
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState({
     documentType: 'Certificate',
     documentTitle: '',
     firstName: '',
     lastName: '',
-    department: '',
+    department: 'Information Technology',
     // Certificate specific
     issuingInstitution: '',
     dateReceived: '',
@@ -223,7 +225,11 @@ const UploadCredential = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label text-muted">Department</label>
-                    <input type="text" className="form-control" name="department" value={formData.department} onChange={handleInputChange} />
+                    <select className="form-select bg-light border-primary" name="department" value={formData.department} onChange={handleInputChange} required>
+                      <option value="Information Technology">Information Technology</option>
+                      <option value="General Education">General Education</option>
+                      <option value="Tourism & Hospitality">Tourism & Hospitality</option>
+                    </select>
                   </div>
                 </>
               )}

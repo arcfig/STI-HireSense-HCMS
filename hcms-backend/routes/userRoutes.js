@@ -1,14 +1,16 @@
 const express = require('express');
 const User = require('../models/User');
 const router = express.Router();
-const { requireHR } = require('../middleware/authMiddleware');
+
+// 1. Import the new jose JWT middleware
+const { verifyToken, requireRole } = require('../middleware/authMiddleware');
 
 // ==========================================
 // SECTION 1: SPECIFIC ROUTES (Must go first)
 // ==========================================
 
-// 1. Fetch Active Users (Path resolves to /api/users/active)
-router.get('/active', async (req, res) => {
+// 1. Fetch Active Users (Secured: Admin only)
+router.get('/active', verifyToken, requireRole(['admin']), async (req, res) => {
   try {
     const activeUsers = await User.find({ isArchived: { $ne: true } }).select('-passwordHash').sort({ createdAt: -1 });
     res.status(200).json(activeUsers);
@@ -17,8 +19,8 @@ router.get('/active', async (req, res) => {
   }
 });
 
-// 2. Fetch Archived Users (Path resolves to /api/users/archived)
-router.get('/archived', async (req, res) => {
+// 2. Fetch Archived Users (Secured: Admin only)
+router.get('/archived', verifyToken, requireRole(['admin']), async (req, res) => {
   try {
     const archivedUsers = await User.find({ isArchived: true }).select('-passwordHash').sort({ createdAt: -1 });
     res.status(200).json(archivedUsers);
@@ -27,8 +29,8 @@ router.get('/archived', async (req, res) => {
   }
 });
 
-// 3. Get ALL users (Legacy route: /api/users)
-router.get('/', requireHR, async (req, res) => {
+// 3. Get ALL users (Legacy route, Secured: Admin or HR)
+router.get('/', verifyToken, requireRole(['admin', 'hr']), async (req, res) => {
   try {
     const users = await User.find({}, '-passwordHash').sort({ createdAt: -1 });
     res.status(200).json(users);
@@ -41,8 +43,8 @@ router.get('/', requireHR, async (req, res) => {
 // SECTION 2: DYNAMIC ROUTES (Must go last)
 // ==========================================
 
-// Archive User (Soft Delete)
-router.put('/:id/archive', async (req, res) => {
+// Archive User (Secured: Admin only)
+router.put('/:id/archive', verifyToken, requireRole(['admin']), async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(req.params.id, { isArchived: true }, { new: true });
     if (!user) return res.status(404).json({ error: "User not found." });
@@ -52,8 +54,8 @@ router.put('/:id/archive', async (req, res) => {
   }
 });
 
-// Restore User
-router.put('/:id/restore', async (req, res) => {
+// Restore User (Secured: Admin only)
+router.put('/:id/restore', verifyToken, requireRole(['admin']), async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(req.params.id, { isArchived: false }, { new: true });
     if (!user) return res.status(404).json({ error: "User not found." });
@@ -63,8 +65,8 @@ router.put('/:id/restore', async (req, res) => {
   }
 });
 
-// Update a user's role 
-router.put('/:id/role', async (req, res) => {
+// Update a user's role (Secured: Admin only)
+router.put('/:id/role', verifyToken, requireRole(['admin']), async (req, res) => {
   try {
     const { role } = req.body;
     const updatedUser = await User.findByIdAndUpdate(
@@ -79,8 +81,8 @@ router.put('/:id/role', async (req, res) => {
   }
 });
 
-// Update a user's skill ratings
-router.put('/:id/skills', async (req, res) => {
+// Update a user's skill ratings (Secured: Any logged-in user)
+router.put('/:id/skills', verifyToken, async (req, res) => {
   try {
     const { skillRatings } = req.body;
     
@@ -99,12 +101,11 @@ router.put('/:id/skills', async (req, res) => {
   }
 });
 
-// Update a user's account details (Username, Email, Phone)
-router.put('/:id/profile', async (req, res) => {
+// Update a user's account details (Secured: Any logged-in user)
+router.put('/:id/profile', verifyToken, async (req, res) => {
   try {
     const { username, email, phoneNumber } = req.body;
     
-    // Check if they are trying to change to a username that someone else already took
     const existingUser = await User.findOne({ username });
     if (existingUser && existingUser._id.toString() !== req.params.id) {
       return res.status(400).json({ error: "That username is already taken." });
@@ -124,12 +125,11 @@ router.put('/:id/profile', async (req, res) => {
   }
 });
 
-// Delete a user (Hard Delete - keeping just in case ever need to manually purge the DB)
-router.delete('/:id', async (req, res) => {
+// Delete a user (Secured: Admin only)
+router.delete('/:id', verifyToken, requireRole(['admin']), async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     
-    // Safety check: Prevent the system from deleting the main.admin account!
     if (user.username === 'admin.user') {
       return res.status(403).json({ error: "Cannot delete the master administrator account." });
     }

@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ManageUsers from './pages/ManageUsers';
 import FacultyPortal from './pages/FacultyPortal';
 import HRDashboard from './pages/HRDashboard';
@@ -14,12 +14,10 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 import SubjectManager from './pages/SubjectManager';
 import ArchivedUsers from './pages/ArchivedUsers';
 
-// --- RBAC HELPER FUNCTIONS ---
 const isAdmin = (role) => role === 'admin';
 const isHeadOrAdmin = (role) => ['admin', 'academic_head', 'program_head'].includes(role);
 const hasPortfolioAccess = (role) => role !== 'admin'; 
 
-// --- INLINE SIDEBAR COMPONENT ---
 function Sidebar({ user, onLogout }) {
   const location = useLocation();
   const role = user?.role || 'faculty';
@@ -91,18 +89,61 @@ function Sidebar({ user, onLogout }) {
   );
 }
 
-// --- MAIN APP COMPONENT ---
 function App() {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('hireSenseUser');
     if (!savedUser || savedUser === "undefined") return null;
-    try {
-      return JSON.parse(savedUser);
-    } catch (error) {
-      localStorage.removeItem('hireSenseUser');
-      return null;
-    }
+    try { return JSON.parse(savedUser); } catch (error) { localStorage.removeItem('hireSenseUser'); return null; }
   });
+
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const notifRef = useRef(null);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  useEffect(() => {
+    if (user) {
+      const fetchNotifications = async () => {
+        try {
+          const res = await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}`);
+          if (res.ok) {
+            const data = await res.json();
+            setNotifications(data);
+          }
+        } catch (error) {
+          console.error("Failed to fetch notifications:", error);
+        }
+      };
+      fetchNotifications();
+      // Optional polling every 30 seconds
+      const interval = setInterval(fetchNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
+  // Handle clicking outside to close dropdown
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setShowNotifs(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleNotifClick = async () => {
+    setShowNotifs(!showNotifs);
+    if (!showNotifs && unreadCount > 0) {
+      try {
+        await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}/read`, { method: 'PUT' });
+        setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+      } catch (error) {
+        console.error("Failed to mark notifications as read:", error);
+      }
+    }
+  };
 
   const handleLogin = (userData) => {
     setUser(userData);
@@ -116,7 +157,6 @@ function App() {
 
   return (
     <Router>
-      {/* UI FIX: Locked viewport height to enable internal scrolling */}
       <div className="d-flex" style={{ backgroundColor: '#f8fafc', height: '100vh', overflow: 'hidden' }}>
         {user ? (
           <>
@@ -124,8 +164,49 @@ function App() {
             
             <div className="d-flex flex-column flex-grow-1" style={{ width: 'calc(100% - 260px)' }}>
               
-              {/* UI FIX: Reduced padding and component sizes for a thinner top bar */}
               <div className="bg-white shadow-sm px-4 py-2 d-flex justify-content-end align-items-center border-bottom z-3">
+                
+                {/* --- NOTIFICATION BELL --- */}
+                <div className="position-relative me-4" ref={notifRef}>
+                  <button 
+                    className="btn btn-light rounded-circle p-2 position-relative shadow-sm"
+                    onClick={handleNotifClick}
+                  >
+                    <i className="bi bi-bell-fill fs-5 text-secondary"></i>
+                    {unreadCount > 0 && (
+                      <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light" style={{ fontSize: '0.65rem' }}>
+                        {unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* NOTIFICATION DROPDOWN */}
+                  {showNotifs && (
+                    <div className="position-absolute bg-white shadow-lg border rounded-3 end-0 mt-2" style={{ width: '350px', maxHeight: '400px', overflowY: 'auto', zIndex: 1050 }}>
+                      <div className="bg-light px-3 py-2 border-bottom fw-bold text-dark d-flex justify-content-between align-items-center">
+                        <span>Notifications</span>
+                        <span className="badge bg-secondary">{notifications.length} Total</span>
+                      </div>
+                      <div className="list-group list-group-flush">
+                        {notifications.length > 0 ? notifications.map((notif, index) => (
+                          <div key={index} className={`list-group-item list-group-item-action p-3 border-bottom ${!notif.isRead ? 'bg-primary bg-opacity-10' : ''}`}>
+                            <div className="d-flex w-100 justify-content-between mb-1">
+                              <h6 className={`mb-0 fw-bold text-${notif.type}`}>{notif.title}</h6>
+                              <small className="text-muted" style={{ fontSize: '0.7rem' }}>
+                                {new Date(notif.date).toLocaleDateString()}
+                              </small>
+                            </div>
+                            <p className="mb-0 small text-dark" style={{ lineHeight: '1.4' }}>{notif.message}</p>
+                          </div>
+                        )) : (
+                          <div className="p-4 text-center text-muted small fst-italic">No notifications yet.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* --- PROFILE ACCESS --- */}
                 <Link to="/profile" className="text-decoration-none text-dark d-flex align-items-center btn btn-light border py-1 px-3 rounded-pill shadow-sm transition-all" style={{ cursor: 'pointer' }}>
                   <div className="text-end me-3">
                     <div className="fw-bold lh-1 text-primary" style={{ fontSize: '0.9rem' }}>{user.name}</div>
@@ -137,7 +218,6 @@ function App() {
                 </Link>
               </div>
 
-              {/* PAGE CONTENT: Now handles its own scroll boundary */}
               <div className="p-4 overflow-y-auto overflow-x-hidden flex-grow-1 h-100">
                 <Routes>
                   <Route path="/" element={<FacultyPortal user={user} />} />

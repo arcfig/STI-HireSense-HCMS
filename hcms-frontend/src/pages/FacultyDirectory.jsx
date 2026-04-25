@@ -19,50 +19,92 @@ const FacultyDirectory = () => {
   const VISIBLE_SKILLS_LIMIT = 8;
   const VISIBLE_SUBJECTS_LIMIT = 5;
 
+  // 1. Retrieve the token from the session object
+  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const token = savedUser?.token;
+
   useEffect(() => {
     const fetchDirectory = async () => {
+      // 2. Safety check: prevent unauthorized fetch attempts
+      if (!token) {
+        console.error("No authentication token found.");
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await fetch('http://localhost:5000/api/faculty/approved');
-        const data = await response.json();
+        // 3. UPDATED: Fetch with Authorization Header
+        const response = await fetch('http://localhost:5000/api/faculty/approved', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
 
-        if (data && data.length > 0) {
-          const groupedProfiles = data.reduce((acc, doc) => {
-            const fullName = `${doc.firstName} ${doc.lastName}`.toUpperCase();
-            
-            if (!acc[fullName]) {
-              acc[fullName] = {
-                fullName: `${doc.firstName} ${doc.lastName}`,
-                firstName: doc.firstName,
-                lastName: doc.lastName,
-                department: doc.department,
-                documentCount: 0,
-                tags: new Set(),
-                eligibleSubjects: new Set(),
-                documents: []
-              };
-            }
-            
-            acc[fullName].documentCount += 1;
-            
-            if (doc.tags && Array.isArray(doc.tags)) {
-              doc.tags.forEach(tag => acc[fullName].tags.add(tag));
-            }
+        if (response.ok) {
+          const data = await response.json();
 
-            if (doc.eligibleSubjects && Array.isArray(doc.eligibleSubjects)) {
-              doc.eligibleSubjects.forEach(sub => acc[fullName].eligibleSubjects.add(sub));
-            }
-            
-            acc[fullName].documents.push(doc);
-            return acc;
-          }, {});
+          if (data && data.length > 0) {
+            const normalizeNameKey = (fName, lName) => {
+              const firstWord = fName.trim().split(/\s+/)[0].toLowerCase();
+              const lastWords = lName.trim().split(/\s+/);
+              const lastWord = lastWords[lastWords.length - 1].toLowerCase();
+              return `${firstWord}_${lastWord}`;
+            };
 
-          const formattedArray = Object.values(groupedProfiles).map(profile => ({
-            ...profile,
-            tags: Array.from(profile.tags).filter(Boolean),
-            eligibleSubjects: Array.from(profile.eligibleSubjects).filter(Boolean)
-          }));
+            const groupedProfiles = data.reduce((acc, doc) => {
+              const normalizedKey = normalizeNameKey(doc.firstName, doc.lastName);
+              
+              if (!acc[normalizedKey]) {
+                acc[normalizedKey] = {
+                  fullName: `${doc.firstName} ${doc.lastName}`,
+                  firstName: doc.firstName,
+                  lastName: doc.lastName,
+                  department: doc.department || '',
+                  documentCount: 0,
+                  tags: new Set(),
+                  eligibleSubjects: new Set(),
+                  documents: []
+                };
+              } else {
+                const existingLength = acc[normalizedKey].fullName.replace(/\s+/g, '').length;
+                const newLength = `${doc.firstName} ${doc.lastName}`.replace(/\s+/g, '').length;
+                if (newLength > existingLength) {
+                  acc[normalizedKey].fullName = `${doc.firstName} ${doc.lastName}`;
+                }
 
-          setDirectoryData(formattedArray);
+                const existingDeptLen = acc[normalizedKey].department.length;
+                const newDeptLen = (doc.department || '').length;
+                if (newDeptLen > existingDeptLen) {
+                  acc[normalizedKey].department = doc.department;
+                }
+              }
+              
+              acc[normalizedKey].documentCount += 1;
+              
+              if (doc.tags && Array.isArray(doc.tags)) {
+                doc.tags.forEach(tag => acc[normalizedKey].tags.add(tag));
+              }
+
+              if (doc.eligibleSubjects && Array.isArray(doc.eligibleSubjects)) {
+                doc.eligibleSubjects.forEach(sub => acc[normalizedKey].eligibleSubjects.add(sub));
+              }
+              
+              acc[normalizedKey].documents.push(doc);
+              return acc;
+            }, {});
+
+            const formattedArray = Object.values(groupedProfiles).map(profile => ({
+              ...profile,
+              tags: Array.from(profile.tags).filter(Boolean),
+              eligibleSubjects: Array.from(profile.eligibleSubjects).filter(Boolean)
+            }));
+
+            setDirectoryData(formattedArray);
+          }
+        } else {
+          console.error("Backend refused the request. Token might be expired.");
         }
       } catch (error) {
         console.error("Error fetching directory:", error);
@@ -72,7 +114,7 @@ const FacultyDirectory = () => {
     };
 
     fetchDirectory();
-  }, []);
+  }, [token]); // Added token as a dependency
 
   const openViewer = (url, title) => url ? setPreviewDoc({ isOpen: true, url, title }) : alert("No file attached.");
   const closeViewer = () => setPreviewDoc({ isOpen: false, url: '', title: '' });
@@ -138,10 +180,8 @@ const FacultyDirectory = () => {
   if (loading) return <div className="container mt-5 text-center"><div className="spinner-border text-primary" role="status"></div><h5 className="mt-3">Loading Directory...</h5></div>;
 
   return (
-    // UI FIX: Root container utilizes 100% of the available App.jsx height
     <div className="d-flex flex-column h-100">
       
-      {/* HEADER & SEARCH (Fixed placement) */}
       <div className="flex-shrink-0">
         <div className="d-flex justify-content-between align-items-end mb-3">
           <div>
@@ -182,7 +222,6 @@ const FacultyDirectory = () => {
         </div>
       </div>
       
-          {/* GRID CONTAINER (Scrollable internal area) */}
       <div className="flex-grow-1 overflow-y-auto overflow-x-hidden pe-2 px-1" style={{ minHeight: 0 }}>
         {directoryData.length === 0 ? (
           <div className="text-center py-5">
@@ -258,7 +297,6 @@ const FacultyDirectory = () => {
         )}
       </div>
 
-      {/* DETAIL VIEW: Synchronized Full Profile Modal */}
       {selectedFaculty && (
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', overflowY: 'auto', zIndex: 1050 }}>
           <div className="modal-dialog modal-xl modal-dialog-centered">
@@ -390,11 +428,15 @@ const FacultyDirectory = () => {
                   {Object.keys(categories).map(tabName => (
                     <li className="nav-item" key={tabName}>
                       <button 
-                        className={`nav-link ${activeTab === tabName ? 'active border-bottom-0' : 'border-0'}`}
+                        className={`nav-link ${activeTab === tabName ? 'border-bottom-0 shadow-sm' : 'border-0'}`}
                         onClick={() => setActiveTab(tabName)}
-                        style={{ backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent', cursor: 'pointer' }}
+                        style={{ 
+                          backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
+                          color: activeTab === tabName ? '#0d6efd' : '#6c757d',
+                          cursor: 'pointer'
+                        }}
                       >
-                        <span className="fw-bold" style={{ color: activeTab === tabName ? '#0d6efd' : '#6c757d' }}>
+                        <span className="fw-bold">
                           {tabName} ({categories[tabName].length})
                         </span>
                       </button>
@@ -464,7 +506,6 @@ const FacultyDirectory = () => {
         </div>
       )}
 
-      {/* SUB-DETAIL VIEW: Native PDF Viewer Modal */}
       {previewDoc.isOpen && (
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
           <div className="modal-dialog modal-xl modal-dialog-centered">

@@ -8,7 +8,7 @@ function HRDashboard({ user }) {
   const [editingDoc, setEditingDoc] = useState(null); 
   const [editFormData, setEditFormData] = useState({});
 
-  // NEW: State to manage the confirmation modal and remarks
+  // State to manage the confirmation modal and remarks
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     facultyId: null,
@@ -16,11 +16,27 @@ function HRDashboard({ user }) {
     remarks: ''
   });
 
+  // 1. Retrieve the token once at the top so all functions can use it
+  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser'));
+  const token = savedUser?.token;
+
+  // --- UPDATED: FETCH WITH TOKEN ---
   const fetchPending = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/faculty/pending');
+      const response = await fetch('http://localhost:5000/api/faculty/pending', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await response.json();
-      setPendingFaculty(data);
+      
+      if (response.ok) {
+        setPendingFaculty(data);
+      } else {
+        console.error("Backend refused the request:", data.error);
+      }
     } catch (error) {
       console.error("Error fetching pending data:", error);
     }
@@ -30,13 +46,13 @@ function HRDashboard({ user }) {
     fetchPending();
   }, []);
 
-  // --- NEW: MODAL HANDLERS ---
+  // --- MODAL HANDLERS ---
   const openConfirmDialog = (id, status) => {
     setConfirmDialog({
       isOpen: true,
       facultyId: id,
       newStatus: status,
-      remarks: '' // Reset remarks on open
+      remarks: '' 
     });
   };
 
@@ -44,14 +60,17 @@ function HRDashboard({ user }) {
     setConfirmDialog({ isOpen: false, facultyId: null, newStatus: '', remarks: '' });
   };
 
-  // --- UPDATED: STATUS UPDATE WITH REMARKS ---
+  // --- UPDATED: STATUS UPDATE WITH TOKEN ---
   const executeUpdateStatus = async () => {
     const { facultyId, newStatus, remarks } = confirmDialog;
 
     try {
       const response = await fetch(`http://localhost:5000/api/faculty/status/${facultyId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify({ status: newStatus, remarks: remarks })
       });
 
@@ -87,12 +106,16 @@ function HRDashboard({ user }) {
     setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
   };
 
+  // --- UPDATED: EDIT SUBMIT WITH TOKEN ---
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
       const response = await fetch(`http://localhost:5000/api/faculty/edit/${editingDoc}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json' 
+        },
         body: JSON.stringify(editFormData)
       });
 
@@ -190,7 +213,11 @@ function HRDashboard({ user }) {
             <div className="row">
               <div className="col-md-6 mb-3">
                 <label className="form-label fw-semibold text-secondary">Department</label>
-                <input type="text" className="form-control bg-light" name="department" value={editFormData.department} onChange={handleEditChange} required />
+                <select className="form-select bg-light border-primary" name="department" value={editFormData.department} onChange={handleEditChange} required>
+                  <option value="Information Technology">Information Technology</option>
+                  <option value="General Education">General Education</option>
+                  <option value="Tourism & Hospitality">Tourism & Hospitality</option>
+                </select>
               </div>
               <div className="col-md-6 mb-3">
                 <label className="form-label fw-semibold text-secondary">Document Type</label>
@@ -268,7 +295,6 @@ function HRDashboard({ user }) {
                         </button>
                       </div>
                       <div className="d-flex justify-content-center gap-2">
-                        {/* CHANGED: Now triggers the modal instead of updating directly */}
                         <button onClick={() => openConfirmDialog(faculty._id, 'approved')} className="btn btn-sm btn-success fw-bold px-3 shadow-sm w-50" title="Approve">
                           <i className="bi bi-check-lg"></i>
                         </button>

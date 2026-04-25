@@ -79,7 +79,7 @@ function Login({ onLogin }) {
     }
   };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
@@ -113,16 +113,22 @@ function Login({ onLogin }) {
           setSuccessMsg("Account created! You can now sign in.");
           switchView('login');
         } else if (view === 'forgot') {
-          setSuccessMsg(data.message); // Shows the temporary password
+          setSuccessMsg(data.message); 
         } else {
-          // DEFENSE-PROOF LOGIN DATA HANDLING
-          const userData = data.user || data; // Adapts to either nested or flat JSON responses
+          // --- NEW: JWT SECURITY DATA HANDLING ---
+          // Ensure both the user object and the security token exist in the response
+          if (data.user && data.token) {
+            
+            // Merge the token into the user object so it gets saved to localStorage together
+            const secureUserData = {
+              ...data.user,
+              token: data.token
+            };
 
-          if (userData && userData.username && userData.role) {
-            onLogin(userData);
-            navigate(['hr', 'admin'].includes(userData.role) ? '/hr-dashboard' : '/');
+            onLogin(secureUserData); // This triggers localStorage.setItem in App.jsx
+            navigate(['hr', 'admin'].includes(data.user.role) ? '/hr-dashboard' : '/');
           } else {
-            setError('Authentication succeeded, but server returned incomplete data. Try refreshing.');
+            setError('Authentication succeeded, but server returned an invalid security token. Try refreshing.');
           }
         }
       } else {

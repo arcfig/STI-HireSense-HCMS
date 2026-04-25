@@ -7,19 +7,35 @@ const SubjectManager = () => {
   const [loading, setLoading] = useState(true);
   const [fetchingFaculty, setFetchingFaculty] = useState(false);
   
-  // 1. NEW STATE: Tracks which department folder is currently open
+  // Tracks which department folder is currently open
   const [openDept, setOpenDept] = useState(null);
+
+  // 1. Retrieve the token once at the top
+  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const token = savedUser?.token;
 
   useEffect(() => {
     const fetchHierarchy = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/faculty/subjects/hierarchy');
-        const data = await response.json();
-        setHierarchy(data);
+        // --- UPDATED: FETCH WITH TOKEN ---
+        const response = await fetch('http://localhost:5000/api/faculty/subjects/hierarchy', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+            'Content-Type': 'application/json'
+          }
+        });
         
-        // Auto-open the first department when the page loads
-        if (Object.keys(data).length > 0) {
-          setOpenDept(Object.keys(data)[0]);
+        if (response.ok) {
+          const data = await response.json();
+          setHierarchy(data);
+          
+          // Auto-open the first department when the page loads
+          if (Object.keys(data).length > 0) {
+            setOpenDept(Object.keys(data)[0]);
+          }
+        } else {
+          console.error("Backend refused the request. Token may be invalid or expired.");
         }
       } catch (error) {
         console.error("Failed to fetch hierarchy:", error);
@@ -28,7 +44,7 @@ const SubjectManager = () => {
       }
     };
     fetchHierarchy();
-  }, []);
+  }, [token]); // Added token as dependency
 
   const handleSubjectClick = async (subject) => {
     setSelectedSubject(subject);
@@ -36,9 +52,21 @@ const SubjectManager = () => {
     setEligibleFaculty([]);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/faculty/subjects/${subject.courseCode}/faculty`);
-      const data = await response.json();
-      setEligibleFaculty(data);
+      // --- UPDATED: FETCH WITH TOKEN ---
+      const response = await fetch(`http://localhost:5000/api/faculty/subjects/${subject.courseCode}/faculty`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEligibleFaculty(data);
+      } else {
+        console.error("Backend refused the request. Token may be invalid or expired.");
+      }
     } catch (error) {
       console.error("Failed to fetch eligible faculty:", error);
     } finally {
@@ -46,7 +74,7 @@ const SubjectManager = () => {
     }
   };
 
-  // 2. NEW FUNCTION: Toggles the accordion state natively in React
+  // Toggles the accordion state natively in React
   const toggleDept = (deptName) => {
     setOpenDept(openDept === deptName ? null : deptName);
   };
@@ -73,12 +101,11 @@ const SubjectManager = () => {
               <div className="accordion accordion-flush">
                 
                 {Object.keys(hierarchy).map((dept, deptIndex) => {
-                  const isOpen = openDept === dept; // Check if this specific department is open
+                  const isOpen = openDept === dept; 
                   
                   return (
                     <div className="accordion-item border-bottom" key={deptIndex}>
                       <h2 className="accordion-header">
-                        {/* 3. REACT ONCLICK TRIGGER */}
                         <button 
                           className={`accordion-button fw-bold bg-light ${isOpen ? '' : 'collapsed'}`} 
                           type="button" 
@@ -89,7 +116,6 @@ const SubjectManager = () => {
                         </button>
                       </h2>
                       
-                      {/* 4. REACT CONDITIONAL RENDERING FOR CONTENT */}
                       <div className={`accordion-collapse collapse ${isOpen ? 'show' : ''}`}>
                         <div className="accordion-body p-0">
                           

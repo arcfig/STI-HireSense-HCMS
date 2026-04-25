@@ -1,18 +1,31 @@
-// middleware/authMiddleware.js
+const { jwtVerify } = require('jose');
 
-const requireHR = (req, res, next) => {
-  // The frontend will send a custom "ID Badge" in the request headers
-  const userRole = req.header('X-User-Role');
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'STI_Super_Secret_Key_2026');
 
-  if (!userRole) {
-    return res.status(401).json({ error: "Access Denied: No role provided." });
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; 
+
+  if (!token) {
+    return res.status(401).json({ error: "Access denied. No authentication token provided." });
   }
 
-  if (userRole === 'hr' || userRole === 'admin') {
-    next(); // They are HR or Admin! Let them through to the route.
-  } else {
-    res.status(403).json({ error: "Forbidden: HR clearance required to access this data." });
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    req.user = payload; 
+    next(); 
+  } catch (error) {
+    return res.status(403).json({ error: "Invalid or expired token." });
   }
 };
 
-module.exports = { requireHR };
+const requireRole = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user || !allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Access denied. Insufficient permissions." });
+    }
+    next();
+  };
+};
+
+module.exports = { verifyToken, requireRole, secret };

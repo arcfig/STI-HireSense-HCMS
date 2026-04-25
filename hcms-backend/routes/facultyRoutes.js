@@ -10,10 +10,13 @@ const Department = require('../models/Department');
 const Program = require('../models/Program');
 const Subject = require('../models/Subject');
 
+// 1. Import the new jose JWT middleware
+const { verifyToken, requireRole } = require('../middleware/authMiddleware');
+
 // --------------------------------------------------------
-// ROUTE 2: AI Document Extraction (Auto-Fill)
+// ROUTE: AI Document Extraction (Auto-Fill) (Secured: All logged-in users)
 // --------------------------------------------------------
-router.post('/extract', upload.single('document'), async (req, res) => {
+router.post('/extract', verifyToken, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No document provided for extraction." });
@@ -36,12 +39,11 @@ router.post('/extract', upload.single('document'), async (req, res) => {
     - If the document is a "Faculty Evaluation", extract the "academicYear" (e.g., "SY 2025-2026"), "term" (e.g., "Term 1"), and the final overall "evaluationRating" as a number (e.g., 4.35).
     
     STRICT INSTRUCTION REGARDING SKILLS/TAGS:
-    - Extract a comma-separated string of key skills or technologies ONLY if explicitly mentioned.
-    - If absolutely no discerning information is present, the "tags" field MUST be an empty string ("").
+    - ONLY extract a comma-separated string of key skills or technologies if the document is classified as a "Certificate".
+    - For ALL other document types (201 File, Contract, Evaluation, LOI), the "tags" field MUST be an empty string ("").
     
     You MUST return ONLY a valid JSON object. Do not use markdown.
-    Example format: {"firstName": "John", "lastName": "Doe", "documentType": "Faculty Evaluation", "documentTitle": "Performance Evaluation", "department": "Information Technology", "dateReceived": "2026-01-26", "expirationDate": "", "issuingInstitution": "STI", "academicYear": "SY 2025-2026", "term": "Term 1", "evaluationRating": 4.35, "tags": "Classroom Management, Communication"}`;
-    
+    Example format: {"firstName": "John", "lastName": "Doe", "documentType": "Faculty Evaluation", "documentTitle": "Performance Evaluation", "department": "Information Technology", "dateReceived": "2026-01-26", "expirationDate": "", "issuingInstitution": "STI", "academicYear": "SY 2025-2026", "term": "Term 1", "evaluationRating": 4.35, "tags": ""}`;
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
       generationConfig: {
@@ -87,9 +89,9 @@ router.post('/extract', upload.single('document'), async (req, res) => {
 });
 
 // --------------------------------------------------------
-// ROUTE 2: Get all 'Pending' profiles for Head Roles (GET)
+// ROUTE: Get all 'Pending' profiles (Secured: Admins and Heads Only)
 // --------------------------------------------------------
-router.get('/pending', async (req, res) => {
+router.get('/pending', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const pendingProfiles = await Faculty.find({ status: 'pending' });
     res.status(200).json(pendingProfiles);
@@ -99,9 +101,9 @@ router.get('/pending', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// ROUTE: Fetch ONLY Approved & Active Profiles (For Directory/Portfolio)
+// ROUTE: Fetch ONLY Approved Profiles (Secured: All logged-in users)
 // --------------------------------------------------------
-router.get('/approved', async (req, res) => {
+router.get('/approved', verifyToken, async (req, res) => {
   try {
     const activeUsers = await User.find({ isArchived: { $ne: true } });
     const activeUserNames = activeUsers.map(u => u.name.toLowerCase());
@@ -121,29 +123,44 @@ router.get('/approved', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// ROUTE 3: Update Profile Status (PUT)
+// ROUTE: Update Profile Status & Trigger Notification (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.put('/status/:id', async (req, res) => {
+router.put('/status/:id', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { id } = req.params;     
-    const { status, remarks } = req.body;   // NEW: Destructure remarks
+    const { status, remarks } = req.body;   
 
     const updatedFaculty = await Faculty.findByIdAndUpdate(
       id, 
-      { status: status, remarks: remarks || '' }, // NEW: Save remarks to DB
+      { status: status, remarks: remarks || '' }, 
       { new: true } 
     );
 
+    if (!updatedFaculty) return res.status(404).json({ error: "Document not found." });
+
+    const fullName = `${updatedFaculty.firstName} ${updatedFaculty.lastName}`;
+    const targetUser = await User.findOne({ name: { $regex: new RegExp(`^${fullName}$`, 'i') } });
+
+    if (targetUser) {
+      targetUser.notifications.push({
+        title: `Document ${status === 'approved' ? 'Approved' : 'Rejected'}`,
+        message: `Your document "${updatedFaculty.documentTitle}" has been ${status}. ${remarks ? `HR Remarks: ${remarks}` : ''}`,
+        type: status === 'approved' ? 'success' : 'danger'
+      });
+      await targetUser.save();
+    }
+
     res.status(200).json({ message: `Profile marked as ${status}`, data: updatedFaculty });
   } catch (error) {
+    console.error("Status Update Error:", error);
     res.status(500).json({ error: "Failed to update status" });
   }
 });
 
 // --------------------------------------------------------
-// ROUTE: Edit/Update an existing credential
+// ROUTE: Edit/Update an existing credential (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.put('/edit/:id', async (req, res) => {
+router.put('/edit/:id', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { firstName, lastName, department, documentTitle, documentType, tags } = req.body;
     
@@ -170,9 +187,9 @@ router.put('/edit/:id', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// ROUTE: AI Candidate Matcher (Aggregated by Active User)
+// ROUTE: AI Candidate Matcher (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.post('/match', async (req, res) => {
+router.post('/match', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { requirements } = req.body;
     if (!requirements) return res.status(400).json({ error: "Please provide job requirements." });
@@ -263,13 +280,12 @@ router.post('/match', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// ROUTE 1: Create Profile + Cloudinary + AI Vision OCR (POST)
+// ROUTE: Create Profile + Cloudinary + AI Vision OCR (Secured: All logged-in users)
 // --------------------------------------------------------
-router.post('/add', upload.single('document'), async (req, res) => {
+router.post('/add', verifyToken, upload.single('document'), async (req, res) => {
   try {
-    const { firstName, lastName, department, documentTitle, documentType, uploaderRole, autoApprove } = req.body;
+    const { firstName, lastName, department, documentTitle, documentType, uploaderRole, autoValidate } = req.body;
     let fileUrl = "";
-    let aiInput = []; 
 
     if (req.file) {
       const b64 = Buffer.from(req.file.buffer).toString("base64");
@@ -280,62 +296,71 @@ router.post('/add', upload.single('document'), async (req, res) => {
         folder: "HCMS_Certificates"
       });
       fileUrl = cldRes.secure_url;
-
-      const filePart = { inlineData: { data: b64, mimeType: req.file.mimetype } };
-
-      const prompt = `You are a highly accurate HR data extraction AI. Read the attached STI document.
-      Extract a list of key skills, certifications, and technologies ONLY if explicitly mentioned or strongly implied by the text.
-      If absolutely no discerning information is present, return an empty array.
-      You MUST return ONLY a JSON object containing a "tags" array of strings. Do not use markdown blocks. 
-      Example: {"tags": ["Java", "Cloud Computing", "SAP"]}`;
-    
-      aiInput = [prompt, filePart]; 
-      
-    } else {
-      const prompt = `You are an HR assistant for a university. 
-      Generate exactly 3 professional skill tags for a faculty member in the ${department} department. 
-      You MUST return ONLY a JSON object containing a "tags" array of strings.`;
-      
-      aiInput = [prompt];
     }
 
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
-      generationConfig: { responseMimeType: "application/json" }
-    });
-    
-    const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
-    let result;
-    let retries = 3; 
+    let tagsArray = [];
 
-    while (retries > 0) {
-      try {
-        result = await model.generateContent(aiInput);
-        break;
-      } catch (apiError) {
-        if (apiError.status === 503 && retries > 1) {
-          console.warn(`[Add API 503] Server overloaded. Retrying... (${retries - 1} attempts left)`);
-          await delay(2500);
-          retries--;
-        } else {
-          throw apiError; 
+    if (documentType === 'Certificate') {
+      let aiInput = []; 
+
+      if (req.file) {
+        const b64 = Buffer.from(req.file.buffer).toString("base64");
+        const filePart = { inlineData: { data: b64, mimeType: req.file.mimetype } };
+        const prompt = `You are a highly accurate HR data extraction AI. Read the attached document. Extract a list of key skills, certifications, and technologies. Return ONLY a JSON object containing a "tags" array of strings. Example: {"tags": ["Java", "Cloud Computing"]}`;
+        
+        aiInput = [prompt, filePart];
+      } else {
+        const prompt = `Generate exactly 3 professional skill tags for a faculty member in the ${department} department. Return ONLY a JSON object containing a "tags" array of strings.`;
+        
+        aiInput = [prompt];
+      }
+
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash",
+        generationConfig: { responseMimeType: "application/json" }
+      });
+      
+      const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+      let result = null;
+      let retries = 3; 
+
+      while (retries > 0) {
+        try {
+          result = await model.generateContent(aiInput);
+          break;
+        } catch (apiError) {
+          if (apiError.status === 503 && retries > 1) {
+            console.warn(`[Add API 503] Server overloaded. Retrying... (${retries - 1} attempts left)`);
+            await delay(2500);
+            retries--;
+          } else {
+            console.error(`[AI Bypass] Gemini API failed: ${apiError.message}. Proceeding without secondary AI tags.`);
+            break; 
+          }
+        }
+      }
+      
+      if (result) {
+        try {
+          const aiText = result.response.text();
+          const parsedData = JSON.parse(aiText);
+          tagsArray = parsedData.tags || [];
+        } catch (parseError) {
+          console.error("Failed to parse Gemini output in /add route:", parseError);
         }
       }
     }
+
+    const finalStatus = (['hr', 'admin', 'academic_head', 'program_head'].includes(uploaderRole) && autoValidate === 'true') ? 'approved' : 'pending';
+
+    const firstWord = firstName.trim().split(/\s+/)[0];
+    const lastWords = lastName.trim().split(/\s+/);
+    const lastWord = lastWords[lastWords.length - 1];
+
+    const nameRegex = new RegExp(`^${firstWord}\\b.*\\b${lastWord}$`, 'i');
+    const existingUser = await User.findOne({ name: { $regex: nameRegex } });
     
-    let tagsArray = [];
-    try {
-      const aiText = result.response.text();
-      const parsedData = JSON.parse(aiText);
-      tagsArray = parsedData.tags || [];
-    } catch (parseError) {
-      console.error("Failed to parse Gemini output in /add route:", parseError);
-    }
-
-    const finalStatus = (['hr', 'admin'].includes(uploaderRole) && autoApprove === 'true') ? 'approved' : 'pending';
-
     const fullName = `${firstName} ${lastName}`;
-    const existingUser = await User.findOne({ name: { $regex: new RegExp(`^${fullName}$`, 'i') } });
     
     if (!existingUser) {
       const baseUsername = `${firstName.toLowerCase().replace(/\s+/g, '')}.${lastName.toLowerCase().replace(/\s+/g, '')}`;
@@ -366,7 +391,6 @@ router.post('/add', upload.single('document'), async (req, res) => {
       formattedTags = [...new Set([...formattedTags, ...frontendTags])]; 
     }
 
-    // 6. Save to Database (Mapped with new dynamic UI fields)
     const newFaculty = new Faculty({
       firstName, lastName, department, 
       documentTitle, 
@@ -383,22 +407,23 @@ router.post('/add', upload.single('document'), async (req, res) => {
       contractStart: req.body.contractStart || '',
       contractEnd: req.body.contractEnd || '',
       intent: req.body.intent || '',
-      offenseType: req.body.offenseType || ''
+      offenseType: req.body.offenseType || '',
+      evaluationRating: req.body.evaluationRating ? parseFloat(req.body.evaluationRating) : null
     });
 
     const savedFaculty = await newFaculty.save();
     res.status(201).json({ message: "Profile & Document submitted!", data: savedFaculty });
 
   } catch (error) {
-    console.error("Upload/AI Error:", error);
+    console.error("Upload Error:", error);
     res.status(500).json({ error: "Failed to process submission", details: error.message });
   }
 });
 
 // --------------------------------------------------------
-// ROUTE: Get Subject Hierarchy for Department Heads
+// ROUTE: Get Subject Hierarchy (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.get('/subjects/hierarchy', async (req, res) => {
+router.get('/subjects/hierarchy', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const subjects = await Subject.find()
       .populate('programId', 'name')
@@ -429,9 +454,9 @@ router.get('/subjects/hierarchy', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// ROUTE: Get Eligible Faculty by Course Code
+// ROUTE: Get Eligible Faculty by Course Code (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.get('/subjects/:courseCode/faculty', async (req, res) => {
+router.get('/subjects/:courseCode/faculty', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { courseCode } = req.params;
     
@@ -448,7 +473,7 @@ router.get('/subjects/:courseCode/faculty', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// TEMPORARY SEED ROUTE: Auto-populate the Database with BSIT Curriculum
+// TEMPORARY SEED ROUTE: Auto-populate the Database (UNSECURED FOR DEFENSE)
 // --------------------------------------------------------
 router.get('/seed-subjects', async (req, res) => {
   try {
@@ -516,7 +541,7 @@ router.get('/seed-subjects', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// TEMPORARY SEED ROUTE: Clean Slate Defense Accounts
+// TEMPORARY SEED ROUTE: Defense Accounts (UNSECURED FOR DEFENSE)
 // --------------------------------------------------------
 router.get('/seed-users', async (req, res) => {
   try {
@@ -546,7 +571,7 @@ router.get('/seed-users', async (req, res) => {
 });
 
 // --------------------------------------------------------
-// TEMPORARY ROUTE: Nuclear Wipe of Faculty Data
+// TEMPORARY ROUTE: Nuclear Wipe of Faculty Data (UNSECURED FOR DEFENSE)
 // --------------------------------------------------------
 router.get('/wipe-faculty', async (req, res) => {
   try {
@@ -558,6 +583,38 @@ router.get('/wipe-faculty', async (req, res) => {
   } catch (error) {
     console.error("Faculty Wipe Error:", error);
     res.status(500).json({ error: "Failed to wipe faculty data." });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Fetch User Notifications (Secured: All logged-in users)
+// --------------------------------------------------------
+router.get('/notifications/:username', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.params.username });
+    if (!user) return res.status(404).json({ error: "User not found." });
+    
+    const sortedNotifications = user.notifications.sort((a, b) => b.date - a.date);
+    res.status(200).json(sortedNotifications);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch notifications." });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Mark Notifications as Read (Secured: All logged-in users)
+// --------------------------------------------------------
+router.put('/notifications/:username/read', verifyToken, async (req, res) => {
+  try {
+    const user = await User.findOne({ username: req.params.username });
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    user.notifications.forEach(notif => notif.isRead = true);
+    await user.save();
+
+    res.status(200).json({ message: "Notifications marked as read." });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update notifications." });
   }
 });
 

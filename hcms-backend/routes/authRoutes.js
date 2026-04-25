@@ -1,7 +1,11 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User'); 
+const { SignJWT } = require('jose'); 
 const router = express.Router();
+
+// Initialize the secret key for token signing
+const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'STI_Super_Secret_Key_2026');
 
 // const seedDatabase = async () => {
 //   const count = await User.countDocuments();
@@ -17,7 +21,7 @@ const router = express.Router();
 // };
 // seedDatabase();
 
-// --- NEW ROUTE: REGISTER ACCOUNT ---
+// --- ROUTE: REGISTER ACCOUNT ---
 router.post('/register', async (req, res) => {
   const { name, username, password, role } = req.body;
   try {
@@ -34,13 +38,10 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// --- EXISTING ROUTES: LOGIN & CHANGE PASSWORD ---
+// --- ROUTE: LOGIN (Generates JWT) ---
 router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
-    
-    const User = require('../models/User'); 
-    const bcrypt = require('bcryptjs');
 
     // 1. Find the user
     const user = await User.findOne({ username });
@@ -48,15 +49,14 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
-    // --- NEW SECURITY BLOCK: Prevent archived accounts from logging in ---
+    // 2. Prevent archived accounts from logging in
     if (user.isArchived) {
       return res.status(403).json({ 
         error: "Account Archived: This account has been disabled. Please contact the system administrator for restoration." 
       });
     }
-    // ---------------------------------------------------------------------
 
-    // 2. Password Evaluation
+    // 3. Password Evaluation
     const isStandardMatch = await bcrypt.compare(password, user.passwordHash);
     const isDefaultBypass = password === "STI_password123";
 
@@ -64,13 +64,28 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
-    // 3. Success Response
-    // We send back the flat user object so App.jsx can instantly read user.role
+    // 4. Generate the JSON Web Token
+    const token = await new SignJWT({ 
+      id: user._id, 
+      username: user.username, 
+      role: user.role 
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('24h') // Token expires in 24 hours
+      .sign(secret);
+
+    // 5. Success Response
     res.status(200).json({
-      _id: user._id,
-      name: user.name,
-      username: user.username,
-      role: user.role
+      message: "Login successful",
+      token: token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        username: user.username,
+        role: user.role,
+        department: user.department || ''
+      }
     });
 
   } catch (error) {
@@ -79,6 +94,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// --- ROUTE: CHANGE PASSWORD ---
 router.put('/change-password', async (req, res) => {
   const { username, currentPassword, newPassword } = req.body;
   try {
@@ -103,8 +119,7 @@ router.put('/change-password', async (req, res) => {
   }
 });
 
-
-// --- NEW ROUTE: FORGOT PASSWORD (PROTOTYPE BYPASS) ---
+// --- ROUTE: FORGOT PASSWORD (PROTOTYPE BYPASS) ---
 router.post('/forgot-password', async (req, res) => {
   const { username } = req.body;
   try {
@@ -130,4 +145,5 @@ router.post('/forgot-password', async (req, res) => {
     res.status(500).json({ error: "Server error during password reset." });
   }
 });
+
 module.exports = router;
