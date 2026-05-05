@@ -4,9 +4,9 @@
   "description": "Backend for STI Human Capital System",
   "main": "server.js",
   "scripts": {
-    "build": "echo 'No build step required'",
     "start": "node server.js"
   },
+  
   "dependencies": {
     "express": "^4.18.2",
     "mongoose": "^8.0.0",
