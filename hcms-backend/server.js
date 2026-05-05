@@ -9,9 +9,6 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server initialized on port ${PORT}`);
-});
 
 // --- SECURITY: Rate Limiting ---
 const authLimiter = rateLimit({
