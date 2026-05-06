@@ -1,12 +1,10 @@
 {
   "name": "hcms-backend",
   "version": "1.0.0",
-  "description": "Backend for STI Human Capital System",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  
   "dependencies": {
     "express": "^4.18.2",
     "mongoose": "^8.0.0",
@@ -14,8 +12,9 @@
     "dotenv": "^16.3.1",
     "jose": "^5.2.0",
     "multer": "^1.4.5-lts.1",
-    "bcryptjs": "^3.0.3",
-    "cloudinary": "^2.9.0",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.0.0",
+    "express-rate-limit": "^7.1.5",
     "@google/generative-ai": "^0.2.0"
   }
 }
