@@ -35,7 +35,7 @@ const MyPortfolio = ({ user }) => {
 
       try {
         // UPDATED: Fetch with Authorization Header
-        const response = await fetch('http://localhost:5000/api/faculty/approved', {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/approved`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,

@@ -23,7 +23,7 @@ function HRDashboard({ user }) {
   // --- UPDATED: FETCH WITH TOKEN ---
   const fetchPending = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/faculty/pending', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/pending`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -65,7 +65,7 @@ function HRDashboard({ user }) {
     const { facultyId, newStatus, remarks } = confirmDialog;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/faculty/status/${facultyId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/status/${facultyId}`, {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -110,7 +110,7 @@ function HRDashboard({ user }) {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`http://localhost:5000/api/faculty/edit/${editingDoc}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/edit/${editingDoc}`, {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED

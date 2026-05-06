@@ -30,14 +30,14 @@ const FacultyPortal = ({ user }) => {
         };
 
         // Fetch approved documents (Accessible by all roles)
-        const approvedRes = await fetch('http://localhost:5000/api/faculty/approved', { headers });
+        const approvedRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/approved`, { headers });
         
         if (approvedRes.ok) {
           const approvedData = await approvedRes.json();
 
           if (isHeadOrAdmin) {
             // Fetch pending documents ONLY if user is an Admin or Head
-            const pendingRes = await fetch('http://localhost:5000/api/faculty/pending', { headers });
+            const pendingRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/pending`, { headers });
             const pendingData = pendingRes.ok ? await pendingRes.json() : [];
 
             const uniqueFaculty = new Set(approvedData.map(doc => `${doc.firstName} ${doc.lastName}`.toLowerCase())).size;

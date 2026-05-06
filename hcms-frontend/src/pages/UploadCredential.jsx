@@ -72,7 +72,7 @@ const UploadCredential = () => {
 
     try {
       // --- UPDATED: FETCH WITH TOKEN (No Content-Type for FormData) ---
-      const response = await fetch('http://localhost:5000/api/faculty/extract', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/extract`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -139,7 +139,7 @@ const UploadCredential = () => {
 
     try {
       // --- UPDATED: FETCH WITH TOKEN (No Content-Type for FormData) ---
-      const response = await fetch('http://localhost:5000/api/faculty/add', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/add`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

@@ -107,7 +107,7 @@ function App() {
       const fetchNotifications = async () => {
         try {
           // --- UPDATED: FETCH WITH TOKEN ---
-          const res = await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}`, {
+          const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/notifications/${user.username}`, {
             method: 'GET',
             headers: {
               'Authorization': `Bearer ${user.token}`,
@@ -146,7 +146,7 @@ function App() {
     if (!showNotifs && unreadCount > 0) {
       try {
         // --- UPDATED: PUT WITH TOKEN ---
-        const res = await fetch(`http://localhost:5000/api/faculty/notifications/${user.username}/read`, { 
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/notifications/${user.username}/read`, { 
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${user.token}`,

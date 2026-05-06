@@ -16,7 +16,7 @@ const ArchivedUsers = () => {
   const fetchArchivedUsers = async () => {
     try {
       // --- UPDATED: FETCH WITH TOKEN ---
-      const response = await fetch('http://localhost:5000/api/users/archived', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/archived`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -40,7 +40,7 @@ const ArchivedUsers = () => {
   const handleRestore = async (userId) => {
     try {
       // --- UPDATED: PUT WITH TOKEN ---
-      const response = await fetch(`http://localhost:5000/api/users/${userId}/restore`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${userId}/restore`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED

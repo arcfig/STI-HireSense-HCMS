@@ -47,7 +47,7 @@ function Login({ onLogin }) {
     scanData.append('document', file);
 
     try {
-      const response = await fetch('http://localhost:5000/api/faculty/extract', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/extract`, {
         method: 'POST',
         body: scanData
       });
@@ -100,7 +100,7 @@ const handleSubmit = async (e) => {
     if (view === 'forgot') endpoint = '/api/auth/forgot-password';
 
     try {
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials)

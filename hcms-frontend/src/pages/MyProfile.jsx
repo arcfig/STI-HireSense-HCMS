@@ -32,7 +32,7 @@ function MyProfile({ user }) {
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/auth/change-password', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/change-password`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: user.username, currentPassword: passwords.currentPassword, newPassword: passwords.newPassword })
       });
@@ -58,7 +58,7 @@ function MyProfile({ user }) {
     setProfileMessage({ text: '', type: '' });
 
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${user.id || user._id}/profile`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${user.id || user._id}/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(profileData)

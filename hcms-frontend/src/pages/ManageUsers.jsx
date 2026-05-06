@@ -18,7 +18,7 @@ function ManageUsers({ currentUser }) {
 
       try {
         // --- UPDATED: FETCH WITH TOKEN ---
-        const response = await fetch('http://localhost:5000/api/users/active', {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/active`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -46,7 +46,7 @@ function ManageUsers({ currentUser }) {
   const handleRoleChange = async (userId, newRole) => {
     try {
       // --- UPDATED: PUT WITH TOKEN ---
-      const response = await fetch(`http://localhost:5000/api/users/${userId}/role`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${userId}/role`, {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -60,7 +60,7 @@ function ManageUsers({ currentUser }) {
         
         // Refresh active users
         const fetchUpdatedUsers = async () => {
-           const refreshResponse = await fetch('http://localhost:5000/api/users/active', {
+           const refreshResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/active`, {
              method: 'GET',
              headers: { 
                'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -89,7 +89,7 @@ function ManageUsers({ currentUser }) {
 
     try {
       // --- UPDATED: PUT WITH TOKEN ---
-      const response = await fetch(`http://localhost:5000/api/users/${userId}/archive`, { 
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${userId}/archive`, { 
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED

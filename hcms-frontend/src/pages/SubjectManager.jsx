@@ -18,7 +18,7 @@ const SubjectManager = () => {
     const fetchHierarchy = async () => {
       try {
         // --- UPDATED: FETCH WITH TOKEN ---
-        const response = await fetch('http://localhost:5000/api/faculty/subjects/hierarchy', {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/subjects/hierarchy`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -53,7 +53,7 @@ const SubjectManager = () => {
 
     try {
       // --- UPDATED: FETCH WITH TOKEN ---
-      const response = await fetch(`http://localhost:5000/api/faculty/subjects/${subject.courseCode}/faculty`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/subjects/${subject.courseCode}/faculty`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
