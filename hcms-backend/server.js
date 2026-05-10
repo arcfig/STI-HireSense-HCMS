@@ -24,7 +24,12 @@ const authLimiter = rateLimit({
 
 // Middleware to handle JSON and Cross-Origin requests
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: '*', // Or explicitly define the frontend URL: 'https://purple-barracuda-906917.hostingersite.com'
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'], // The explicit inclusion of 'Authorization' resolves the 204 block
+    credentials: true
+}));
 const facultyRoutes = require('./routes/facultyRoutes');
 const authRoutes = require('./routes/authRoutes');
 
