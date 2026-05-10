@@ -15,6 +15,8 @@ const verifyToken = async (req, res, next) => {
     req.user = payload; 
     next(); 
   } catch (error) {
+    // Expose the native error to the backend logs
+    console.error("JWT Verification Failure:", error.code, error.message);
     return res.status(403).json({ error: "Invalid or expired token." });
   }
 };
