@@ -16,7 +16,7 @@ function CandidateMatcher() {
 
     try {
       // 1. Retrieve the raw data from storage
-      const rawStorageValue = localStorage.getItem('token'); 
+      const rawStorageValue = localStorage.getItem('user'); 
       let userToken = '';
 
       console.log("DIAGNOSTIC 1: Raw Storage Value ->", rawStorageValue);
