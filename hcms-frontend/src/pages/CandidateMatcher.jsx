@@ -22,17 +22,18 @@ function CandidateMatcher() {
         const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
       // Execute the network request with corrected endpoint
-      const response = await fetch(`${baseUrl}/api/faculty/match`, {
-          method: 'POST',
-          headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${userToken}` 
-          },
-          // Transmit only the key expected by the backend route
-          body: JSON.stringify({
-              requirements: requirements 
-          })
-      });
+// 1. URL reverted to the correct endpoint
+const response = await fetch(`${baseUrl}/api/faculty/match-candidates`, {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}` 
+    },
+    // 2. Payload remains updated to match backend expectations
+    body: JSON.stringify({
+        requirements: requirements 
+    })
+});
 
       const data = await response.json();
 
