@@ -15,11 +15,25 @@ function CandidateMatcher() {
     setMatches([]);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/match`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ requirements })
-      });
+      // 1. Retrieve the exact key identified in your AuthContext
+        const userToken = localStorage.getItem('token'); 
+
+      // 2. Retrieve the dynamic environment variable
+        const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
+      // 3. Execute the network request
+      const response = await fetch(`${baseUrl}/api/faculty/match-candidates`, {
+         method: 'POST',
+          headers: {
+        'Content-Type': 'application/json',
+        // 4. Inject the token to bypass the 401 Unauthorized block
+        'Authorization': `Bearer ${userToken}` 
+    },
+    body: JSON.stringify({
+        applicants: cvData,
+        jobDescription: jobDescription
+    })
+});
 
       const data = await response.json();
 
