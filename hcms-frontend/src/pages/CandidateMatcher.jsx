@@ -21,19 +21,18 @@ function CandidateMatcher() {
       // 2. Retrieve the dynamic environment variable
         const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
-      // 3. Execute the network request
-      const response = await fetch(`${baseUrl}/api/faculty/match-candidates`, {
-         method: 'POST',
+      // Execute the network request with corrected endpoint
+      const response = await fetch(`${baseUrl}/api/faculty/match`, {
+          method: 'POST',
           headers: {
-        'Content-Type': 'application/json',
-        // 4. Inject the token to bypass the 401 Unauthorized block
-        'Authorization': `Bearer ${userToken}` 
-    },
-    body: JSON.stringify({
-        applicants: cvData,
-        jobDescription: jobDescription
-    })
-});
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${userToken}` 
+          },
+          // Transmit only the key expected by the backend route
+          body: JSON.stringify({
+              requirements: requirements 
+          })
+      });
 
       const data = await response.json();
 
