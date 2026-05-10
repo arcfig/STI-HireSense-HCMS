@@ -16,24 +16,28 @@ function CandidateMatcher() {
 
     try {
       // 1. Retrieve the exact key identified in your AuthContext
-        const userToken = localStorage.getItem('token'); 
+      let userToken = localStorage.getItem('token'); 
 
-      // 2. Retrieve the dynamic environment variable
-        const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      // 2. Sanitize the string to remove JSON serialization artifacts
+      if (userToken) {
+          userToken = userToken.replace(/^"|"$/g, '');
+      }
 
-      // Execute the network request with corrected endpoint
-// 1. URL reverted to the correct endpoint
-const response = await fetch(`${baseUrl}/api/faculty/match`, {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${userToken}` 
-    },
-    // 2. Payload remains updated to match backend expectations
-    body: JSON.stringify({
-        requirements: requirements 
-    })
-});
+      // 3. Retrieve the dynamic environment variable
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+
+      // 4. Execute the network request with corrected endpoint
+      const response = await fetch(`${baseUrl}/api/faculty/match`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${userToken}` 
+        },
+        // 5. Payload configured to match backend expectations
+        body: JSON.stringify({
+            requirements: requirements 
+        })
+      });
 
       const data = await response.json();
 
