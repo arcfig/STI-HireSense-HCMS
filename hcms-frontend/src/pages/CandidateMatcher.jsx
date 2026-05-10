@@ -23,7 +23,7 @@ function CandidateMatcher() {
 
       // Execute the network request with corrected endpoint
 // 1. URL reverted to the correct endpoint
-const response = await fetch(`${baseUrl}/api/faculty/match-candidates`, {
+const response = await fetch(`${baseUrl}/api/faculty/match`, {
     method: 'POST',
     headers: {
         'Content-Type': 'application/json',
