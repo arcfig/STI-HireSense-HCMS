@@ -15,13 +15,38 @@ function CandidateMatcher() {
     setMatches([]);
 
     try {
-      // 1. Retrieve the exact key identified in your AuthContext
-      let userToken = localStorage.getItem('token'); 
+      // 1. Retrieve the raw data from storage
+      const rawStorageValue = localStorage.getItem('token'); 
+      let userToken = '';
 
-      // 2. Sanitize the string to remove JSON serialization artifacts
-      if (userToken) {
+      console.log("DIAGNOSTIC 1: Raw Storage Value ->", rawStorageValue);
+
+      // 2. Execute aggressive extraction logic
+      if (rawStorageValue) {
+          try {
+              // Attempt to parse the data in case the login route saved a full JSON object
+              const parsedData = JSON.parse(rawStorageValue);
+              
+              if (parsedData && parsedData.token) {
+                  // The JWT was nested inside an object
+                  userToken = parsedData.token;
+              } else if (typeof parsedData === 'string') {
+                  // The data was a stringified string
+                  userToken = parsedData;
+              } else {
+                  // Fallback for unexpected object structures
+                  userToken = rawStorageValue; 
+              }
+          } catch (e) {
+              // If JSON.parse fails, the data is already a raw unformatted string
+              userToken = rawStorageValue;
+          }
+          
+          // Final sanitization to strip any lingering artifacts
           userToken = userToken.replace(/^"|"$/g, '');
       }
+
+      console.log("DIAGNOSTIC 2: Extracted JWT ->", userToken);
 
       // 3. Retrieve the dynamic environment variable
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
