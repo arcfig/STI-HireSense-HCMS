@@ -288,18 +288,12 @@ const MyPortfolio = ({ user }) => {
         {Object.keys(categories).map(tabName => (
           <li className="nav-item" key={tabName}>
             <button 
-              // The 'active' class string is intentionally removed here to prevent CSS conflicts
-              className={`nav-link ${activeTab === tabName ? 'border-bottom-0 shadow-sm' : 'border-0'}`}
+              // Utilizing Bootstrap's native 'active' class combined with text utility classes for guaranteed contrast
+              className={`nav-link px-4 py-2 fw-bold ${activeTab === tabName ? 'active text-primary shadow-sm border-bottom-0' : 'text-secondary border-0 opacity-75'}`}
               onClick={() => setActiveTab(tabName)}
-              style={{ 
-                backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
-                color: activeTab === tabName ? '#0d6efd' : '#6c757d',
-                cursor: 'pointer'
-              }}
+              style={{ cursor: 'pointer' }}
             >
-              <span className="fw-bold">
-                {tabName} ({categories[tabName].length})
-              </span>
+              {tabName} ({categories[tabName].length})
             </button>
           </li>
         ))}
