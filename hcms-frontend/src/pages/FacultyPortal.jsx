@@ -10,7 +10,7 @@ const FacultyPortal = ({ user }) => {
   const isHeadOrAdmin = ['admin', 'academic_head', 'program_head'].includes(role);
 
   const [metrics, setMetrics] = useState({
-    admin: { totalFaculty: 0, pendingApprovals: 0, totalSkills: 0 },
+    admin: { totalFaculty: 0, pendingApprovals: 0, departmentCounts: {} },
     faculty: { docCount: 0, skillCount: 0, rating: 'N/A' }
   });
   const [loading, setLoading] = useState(true);
@@ -40,15 +40,29 @@ const FacultyPortal = ({ user }) => {
             const pendingRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/pending`, { headers });
             const pendingData = pendingRes.ok ? await pendingRes.json() : [];
 
-            const uniqueFaculty = new Set(approvedData.map(doc => `${doc.firstName} ${doc.lastName}`.toLowerCase())).size;
-            const allSkills = new Set(approvedData.flatMap(doc => doc.tags || [])).size;
+            // Execute Department Aggregation Map
+            const facultyMap = new Map();
+            approvedData.forEach(doc => {
+              const nameKey = `${doc.firstName} ${doc.lastName}`.toLowerCase();
+              const dept = doc.department || 'Unassigned';
+              
+              if (!facultyMap.has(nameKey)) {
+                facultyMap.set(nameKey, dept);
+              }
+            });
+
+            // Count unique faculty per department
+            const deptCounts = {};
+            facultyMap.forEach(dept => {
+              deptCounts[dept] = (deptCounts[dept] || 0) + 1;
+            });
             
             setMetrics(prev => ({
               ...prev,
               admin: {
-                totalFaculty: uniqueFaculty,
+                totalFaculty: facultyMap.size,
                 pendingApprovals: pendingData.length || 0,
-                totalSkills: allSkills
+                departmentCounts: deptCounts
               }
             }));
           } else {
@@ -88,6 +102,9 @@ const FacultyPortal = ({ user }) => {
     fetchAnalytics();
   }, [isHeadOrAdmin, name, token]);
 
+  // UI Color Matrix for dynamic department cards
+  const themeColors = ['info', 'secondary', 'dark', 'success', 'primary'];
+
   return (
     <div className="container mt-2">
       <div className="card shadow-sm border-0 mb-4 bg-primary text-white" style={{ background: 'linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%)' }}>
@@ -123,6 +140,7 @@ const FacultyPortal = ({ user }) => {
                     </div>
                   </div>
                 </div>
+                
                 <div className="col-md-4">
                   <div className="card shadow-sm border-0 h-100 border-bottom border-warning border-4">
                     <div className="card-body p-4">
@@ -134,17 +152,26 @@ const FacultyPortal = ({ user }) => {
                     </div>
                   </div>
                 </div>
-                <div className="col-md-4">
-                  <div className="card shadow-sm border-0 h-100 border-bottom border-success border-4">
-                    <div className="card-body p-4">
-                      <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="text-muted fw-bold mb-0 text-uppercase">Skills Indexed</h6>
-                        <div className="bg-success bg-opacity-10 text-success rounded px-2 py-1"><i className="bi bi-tags-fill"></i></div>
+
+                {/* Dynamic Department Cards Mapping */}
+                {Object.entries(metrics.admin.departmentCounts).map(([dept, count], index) => {
+                  const colorClass = themeColors[index % themeColors.length];
+                  return (
+                    <div className="col-md-4" key={dept}>
+                      <div className={`card shadow-sm border-0 h-100 border-bottom border-${colorClass} border-4`}>
+                        <div className="card-body p-4">
+                          <div className="d-flex justify-content-between align-items-center mb-3">
+                            <h6 className="text-muted fw-bold mb-0 text-uppercase text-truncate" style={{maxWidth: '80%'}} title={dept}>{dept}</h6>
+                            <div className={`bg-${colorClass} bg-opacity-10 text-${colorClass} rounded px-2 py-1`}>
+                              <i className="bi bi-diagram-3-fill"></i>
+                            </div>
+                          </div>
+                          <h2 className="display-5 fw-bold text-dark mb-0">{count}</h2>
+                        </div>
                       </div>
-                      <h2 className="display-5 fw-bold text-dark mb-0">{metrics.admin.totalSkills}</h2>
                     </div>
-                  </div>
-                </div>
+                  );
+                })}
               </>
             ) : (
               <>
