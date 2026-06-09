@@ -38,6 +38,7 @@ const authRoutes = require('./routes/authRoutes');
 app.use('/api/faculty', facultyRoutes);
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/verify-certificate', require('./routes/certificateVerification'));
 // The actual connection to MongoDB Atlas
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))
