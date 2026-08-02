@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { startRegistration } from '@simplewebauthn/browser';
 
 function MyProfile({ user }) {
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -11,6 +12,58 @@ function MyProfile({ user }) {
     phoneNumber: user?.phoneNumber || ''
   });
   const [profileMessage, setProfileMessage] = useState({ text: '', type: '' });
+  
+  const [webauthnMessage, setWebauthnMessage] = useState({ text: '', type: '' });
+  const [isRegisteringBiometrics, setIsRegisteringBiometrics] = useState(false);
+
+  const handleRegisterBiometrics = async () => {
+    setWebauthnMessage({ text: '', type: '' });
+    setIsRegisteringBiometrics(true);
+    try {
+      // 1. Get options from server
+      const optRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/register/generate-options`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user.username })
+      });
+      const options = await optRes.json();
+
+      if (!optRes.ok) {
+        throw new Error(options.error || 'Failed to get registration options');
+      }
+
+      // 2. Call WebAuthn API
+      let asseResp;
+      try {
+        asseResp = await startRegistration({ optionsJSON: options });
+      } catch (error) {
+        if (error.name === 'NotAllowedError') {
+          throw new Error('Registration cancelled or timed out.');
+        }
+        throw error;
+      }
+
+      // 3. Verify with server
+      const verifyRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/register/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user.username, response: asseResp })
+      });
+      
+      const verification = await verifyRes.json();
+      
+      if (verifyRes.ok && verification.verified) {
+        setWebauthnMessage({ text: 'Biometric device registered successfully!', type: 'success' });
+      } else {
+        throw new Error(verification.error || 'Failed to verify biometric registration');
+      }
+    } catch (error) {
+      console.error(error);
+      setWebauthnMessage({ text: error.message || 'Error during biometric registration', type: 'danger' });
+    } finally {
+      setIsRegisteringBiometrics(false);
+    }
+  };
 
   // --- PASSWORD & PROFILE FUNCTIONS ---
   const handleLogout = () => {
@@ -164,6 +217,24 @@ function MyProfile({ user }) {
               </div>
               <button type="submit" className="btn btn-primary fw-bold px-4 shadow-sm" disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}>Update Password</button>
             </form>
+          </div>
+
+          {/* Biometric Security */}
+          <div className="card shadow-sm border-0 rounded-3 p-4 bg-white mt-4">
+            <h5 className="fw-bold text-secondary mb-4 border-bottom pb-2"><i className="bi bi-fingerprint text-primary me-2"></i> Biometric Authentication</h5>
+            <p className="text-muted small">Enhance your account security by registering a biometric device (e.g., Windows Hello, Touch ID, or fingerprint scanner).</p>
+            {webauthnMessage.text && <div className={`alert alert-${webauthnMessage.type} py-2 border-0 shadow-sm`}><i className={`bi ${webauthnMessage.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>{webauthnMessage.text}</div>}
+            <button 
+              onClick={handleRegisterBiometrics} 
+              disabled={isRegisteringBiometrics}
+              className="btn btn-outline-primary fw-bold px-4 shadow-sm"
+            >
+              {isRegisteringBiometrics ? (
+                <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registering...</>
+              ) : (
+                <><i className="bi bi-person-plus-fill me-2"></i> Register Biometric Device</>
+              )}
+            </button>
           </div>
 
         </div>

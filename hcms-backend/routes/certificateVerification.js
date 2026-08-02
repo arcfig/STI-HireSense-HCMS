@@ -56,12 +56,16 @@ router.post('/', upload.single('certificate'), async (req, res) => {
         layoutAnomalyScore: {
           type: SchemaType.NUMBER,
           description: "A score between 0.0 and 1.0 indicating preliminary visual manipulation and layout anomalies. 1.0 means highly likely to be manipulated."
+        },
+        anomalyReasoning: {
+          type: SchemaType.STRING,
+          description: "Detailed explanation of why the layoutAnomalyScore was given, listing specific visual anomalies, font mismatches, or layout issues found."
         }
       },
-      required: ["issuer", "topic", "date", "layoutAnomalyScore"]
+      required: ["issuer", "topic", "date", "layoutAnomalyScore", "anomalyReasoning"]
     };
 
-    const extractionModel = genAI.getGenerativeModel({ 
+    const extractionModel = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json",
@@ -79,7 +83,7 @@ router.post('/', upload.single('certificate'), async (req, res) => {
 
     const rawText = extractionResult.response.text();
     let extractedData;
-    
+
     try {
       extractedData = JSON.parse(rawText);
     } catch (parseError) {
@@ -87,32 +91,97 @@ router.post('/', upload.single('certificate'), async (req, res) => {
       return res.status(500).json({ error: "AI returned an unparsable format." });
     }
 
-    // Check if required fields exist
-    // They must be present and not empty strings
-    if (!extractedData.issuer || !extractedData.topic || !extractedData.date ||
-        extractedData.issuer.trim() === "" || extractedData.topic.trim() === "" || extractedData.date.trim() === "") {
-      return res.status(422).json({ 
-        error: "Failed to extract required fields (issuer, topic, date). The document may not be a valid certificate or is illegible.",
+    // Normalize missing or empty fields to prevent failure on partial extraction
+    extractedData.issuer = (extractedData.issuer && extractedData.issuer.trim() !== "") ? extractedData.issuer.trim() : "Not specified";
+    extractedData.topic = (extractedData.topic && extractedData.topic.trim() !== "") ? extractedData.topic.trim() : "Not specified";
+    extractedData.date = (extractedData.date && extractedData.date.trim() !== "") ? extractedData.date.trim() : "Not specified";
+
+    // Only terminate if BOTH the issuer and topic are entirely missing
+    if (extractedData.issuer === "Not specified" && extractedData.topic === "Not specified") {
+      return res.status(422).json({
+        error: "Failed to extract core certificate identity. Both issuer and topic are missing. The document is illegible.",
         extractedData
       });
     }
 
-    // Stage 2: Grounding Validation
+    const category = req.body.category;
+    if (category === "Contract") {
+      return res.status(200).json({
+        layoutAnomalyScore: extractedData.layoutAnomalyScore,
+        isValid: null,
+        referenceUrls: [],
+        extractedData: {
+          issuer: extractedData.issuer,
+          topic: extractedData.topic,
+          date: extractedData.date
+        }
+      });
+    }
+
+    if (extractedData.issuer === "Not specified" || extractedData.topic === "Not specified") {
+      return res.status(200).json({
+        layoutAnomalyScore: extractedData.layoutAnomalyScore,
+        isValid: null,
+        referenceUrls: [],
+        extractedData: {
+          issuer: extractedData.issuer,
+          topic: extractedData.topic,
+          date: extractedData.date
+        }
+      });
+    }
+
+    // Stage 2: Grounding Validation (Custom Pipeline)
+    const searchQuery = `"${extractedData.issuer}" "${extractedData.topic}" ${extractedData.date} event seminar verification`;
+
+    let searchSnippets = [];
+    let searchUrls = [];
+
+    try {
+      const searchResponse = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: process.env.TAVILY_API_KEY,
+          query: searchQuery,
+          search_depth: "basic",
+          include_answer: false,
+          max_results: 5
+        })
+      });
+
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json();
+        if (searchData && searchData.results) {
+          searchSnippets = searchData.results.map(r => r.content);
+          searchUrls = searchData.results.map(r => r.url);
+        }
+      } else {
+        return res.status(502).json({ error: "External verification search failed. Please verify API key configuration." });
+      }
+    } catch (searchError) {
+      return res.status(502).json({ error: "External verification search failed. Please verify API key configuration." });
+    }
+
     const validationPrompt = `Verify if the following event actually took place:
     Topic/Event Name: ${extractedData.topic}
     Issuer/Organizer: ${extractedData.issuer}
     Date: ${extractedData.date}
     
-    Use Google Search to cross-reference these details.
-    Did this event or seminar likely occur as described? Set "isValid" to true or false.
-    Provide an array of strings in "referenceUrls" containing any URLs you used to verify.
+    Here is the retrieved context from the web regarding this event:
+    ${searchSnippets.length > 0 ? searchSnippets.join('\n\n') : "No search context available."}
+
+    Available Reference URLs:
+    ${searchUrls.length > 0 ? searchUrls.join('\n') : "No URLs available."}
+    
+    Based on the provided context, did this event or seminar likely occur as described? Set "isValid" to true or false.
+    Provide an array of strings in "referenceUrls" containing any URLs you used to verify from the provided list.
     
     Return ONLY a valid JSON object. Do not use markdown.
-    Example format: {"isValid": true, "referenceUrls": ["https://example.com"]}`;
+    Example format: {"isValid": true, "reasoning": "Clear explanation of why the web context confirms or fails to confirm the event.", "referenceUrls": ["https://example.com"]}`;
 
-    const validationModel = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-pro",
-      tools: [{ googleSearchRetrieval: {} }],
+    const validationModel = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json"
       }
@@ -123,12 +192,12 @@ router.post('/', upload.single('certificate'), async (req, res) => {
       validationResult = await validationModel.generateContent(validationPrompt);
     } catch (apiError) {
       console.error("Gemini Validation Error:", apiError);
-      return res.status(500).json({ error: "Failed to validate event via search grounding." });
+      return res.status(500).json({ error: "Failed to validate event via search grounding. Error: " + apiError.message });
     }
 
     const valRawText = validationResult.response.text();
     let validationData;
-    
+
     try {
       validationData = JSON.parse(valRawText);
     } catch (parseError) {
@@ -139,7 +208,9 @@ router.post('/', upload.single('certificate'), async (req, res) => {
     // Combine results
     const finalResponse = {
       layoutAnomalyScore: extractedData.layoutAnomalyScore,
+      anomalyReasoning: extractedData.anomalyReasoning || "No anomalies detected.",
       isValid: validationData.isValid,
+      groundingReasoning: validationData.reasoning || "No search context available.",
       referenceUrls: validationData.referenceUrls || [],
       extractedData: {
         issuer: extractedData.issuer,

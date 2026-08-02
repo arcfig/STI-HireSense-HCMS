@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { startAuthentication } from '@simplewebauthn/browser';
 
 function Login({ onLogin }) {
   // Initialize navigation to prevent crashes after login
@@ -20,6 +21,69 @@ function Login({ onLogin }) {
   // 2. State for the AI Scanner
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState({ text: '', type: '' });
+  
+  const [isBiometricLogin, setIsBiometricLogin] = useState(false);
+
+  const handleBiometricLogin = async () => {
+    if (!credentials.username) {
+      setError("Please enter your System Username first.");
+      return;
+    }
+    
+    setError('');
+    setIsBiometricLogin(true);
+    
+    try {
+      // 1. Get options
+      const optRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/login/generate-options`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: credentials.username })
+      });
+      const options = await optRes.json();
+      
+      if (!optRes.ok) {
+        throw new Error(options.error || 'Failed to get authentication options.');
+      }
+      
+      // 2. Call WebAuthn API
+      let asseResp;
+      try {
+        asseResp = await startAuthentication({ optionsJSON: options });
+      } catch (error) {
+        if (error.name === 'NotAllowedError') {
+          throw new Error('Authentication cancelled or timed out.');
+        }
+        throw error;
+      }
+      
+      // 3. Verify with server
+      const verifyRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/login/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: credentials.username, response: asseResp })
+      });
+      
+      const data = await verifyRes.json();
+      
+      if (verifyRes.ok && data.user && data.token) {
+        setSuccessMsg("Biometric login successful!");
+        const secureUserData = {
+          ...data.user,
+          token: data.token
+        };
+        onLogin(secureUserData);
+        navigate(['hr', 'admin'].includes(data.user.role) ? '/hr-dashboard' : '/');
+      } else {
+        throw new Error(data.error || 'Failed to verify biometric login.');
+      }
+    } catch (error) {
+      console.error(error);
+      setError(error.message || 'Error during biometric login.');
+    } finally {
+      setIsBiometricLogin(false);
+    }
+  };
 
   // Using 'prev' ensures React always has the latest state when typing fast!
   const handleChange = (e) => {
@@ -285,6 +349,21 @@ const handleSubmit = async (e) => {
             <button type="submit" className="btn btn-warning w-100 fw-bold py-2 shadow-sm text-dark fs-5 mt-4">
               {view === 'register' ? 'Create Secure Account' : 'Sign In'}
             </button>
+            
+            {view === 'login' && (
+              <button 
+                type="button" 
+                onClick={handleBiometricLogin}
+                disabled={isBiometricLogin}
+                className="btn btn-outline-primary w-100 fw-bold py-2 shadow-sm fs-5 mt-2 d-flex align-items-center justify-content-center"
+              >
+                {isBiometricLogin ? (
+                  <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Authenticating...</>
+                ) : (
+                  <><i className="bi bi-fingerprint me-2"></i>Login with Biometrics</>
+                )}
+              </button>
+            )}
             
           </form>
 

@@ -12,6 +12,15 @@ const userSchema = new mongoose.Schema({
   department: { type: String, default: '' },
   skillRatings: { type: Object, default: {} },
   
+  // WebAuthn Fields
+  webAuthnCredentials: [{
+    credentialID: { type: String, required: true },
+    credentialPublicKey: { type: Buffer, required: true },
+    counter: { type: Number, required: true, default: 0 },
+    transports: { type: [String], default: [] }
+  }],
+  currentChallenge: { type: String, default: null },
+
   // Soft-delete flag
   isArchived: { type: Boolean, default: false },
   

@@ -3,9 +3,9 @@ import { useState, useEffect } from 'react';
 function HRDashboard({ user }) {
   const [pendingFaculty, setPendingFaculty] = useState([]);
   const [message, setMessage] = useState('');
-  
+
   // State to track editing
-  const [editingDoc, setEditingDoc] = useState(null); 
+  const [editingDoc, setEditingDoc] = useState(null);
   const [editFormData, setEditFormData] = useState({});
 
   // State to manage the confirmation modal and remarks
@@ -15,6 +15,12 @@ function HRDashboard({ user }) {
     newStatus: '',
     remarks: ''
   });
+
+  // --- VERIFICATION STATE ---
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationResult, setVerificationResult] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [verifyingCategory, setVerifyingCategory] = useState("");
 
   // 1. Retrieve the token once at the top so all functions can use it
   const savedUser = JSON.parse(localStorage.getItem('hireSenseUser'));
@@ -31,7 +37,7 @@ function HRDashboard({ user }) {
         }
       });
       const data = await response.json();
-      
+
       if (response.ok) {
         setPendingFaculty(data);
       } else {
@@ -52,7 +58,7 @@ function HRDashboard({ user }) {
       isOpen: true,
       facultyId: id,
       newStatus: status,
-      remarks: '' 
+      remarks: ''
     });
   };
 
@@ -67,16 +73,16 @@ function HRDashboard({ user }) {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/status/${facultyId}`, {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
-          'Content-Type': 'application/json' 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ status: newStatus, remarks: remarks })
       });
 
       if (response.ok) {
         setMessage(`Document successfully ${newStatus}!`);
-        fetchPending(); 
+        fetchPending();
         closeConfirmDialog();
         setTimeout(() => setMessage(''), 3000);
       } else {
@@ -89,6 +95,54 @@ function HRDashboard({ user }) {
     }
   };
 
+  // --- VERIFICATION HANDLER ---
+  const handleVerify = async (faculty) => {
+    if (!faculty.documentUrl) {
+      setMessage("No document URL available to verify.");
+      return;
+    }
+
+    setIsVerifying(true);
+    setVerificationResult(null);
+    setIsModalOpen(true);
+    const documentCategory = faculty.documentType || "Certificate";
+    setVerifyingCategory(documentCategory);
+
+    try {
+      const fileResponse = await fetch(faculty.documentUrl);
+      if (!fileResponse.ok) throw new Error("Failed to fetch document file.");
+      const blob = await fileResponse.blob();
+
+      const formData = new FormData();
+      let ext = "pdf";
+      if (blob.type === "image/jpeg") ext = "jpg";
+      if (blob.type === "image/png") ext = "png";
+      formData.append('certificate', blob, `document.${ext}`);
+      formData.append('category', documentCategory);
+
+      const verifyResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/verify-certificate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await verifyResponse.json();
+
+      if (verifyResponse.ok) {
+        setVerificationResult(data);
+      } else {
+        setVerificationResult({ error: data.error || "Verification failed." });
+      }
+    } catch (error) {
+      console.error("Verification error:", error);
+      setVerificationResult({ error: error.message || "An error occurred during verification." });
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   // --- EDIT FUNCTIONS ---
   const startEditing = (faculty) => {
     setEditingDoc(faculty._id);
@@ -98,7 +152,7 @@ function HRDashboard({ user }) {
       department: faculty.department,
       documentTitle: faculty.documentTitle || '',
       documentType: faculty.documentType || 'Certificate',
-      tags: faculty.tags ? faculty.tags.join(', ') : '' 
+      tags: faculty.tags ? faculty.tags.join(', ') : ''
     });
   };
 
@@ -112,17 +166,17 @@ function HRDashboard({ user }) {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/edit/${editingDoc}`, {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
-          'Content-Type': 'application/json' 
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(editFormData)
       });
 
       if (response.ok) {
         setMessage('Document details updated successfully!');
-        setEditingDoc(null); 
-        fetchPending(); 
+        setEditingDoc(null);
+        fetchPending();
         setTimeout(() => setMessage(''), 3000);
       } else {
         setMessage('Failed to save edits.');
@@ -131,6 +185,8 @@ function HRDashboard({ user }) {
       setMessage('Server error during edit.');
     }
   };
+
+  const hasMissingData = verificationResult?.extractedData?.issuer === "Not specified" || verificationResult?.extractedData?.topic === "Not specified";
 
   return (
     <div className="position-relative">
@@ -164,9 +220,9 @@ function HRDashboard({ user }) {
                 </p>
                 <div className="mb-2">
                   <label className="form-label fw-bold text-muted small text-uppercase">Administrative Remarks (Optional)</label>
-                  <textarea 
-                    className="form-control bg-light" 
-                    rows="3" 
+                  <textarea
+                    className="form-control bg-light"
+                    rows="3"
                     placeholder={confirmDialog.newStatus === 'rejected' ? "Please state the reason for rejection..." : "Add any internal notes here..."}
                     value={confirmDialog.remarks}
                     onChange={(e) => setConfirmDialog({ ...confirmDialog, remarks: e.target.value })}
@@ -175,9 +231,9 @@ function HRDashboard({ user }) {
               </div>
               <div className="modal-footer bg-light">
                 <button type="button" className="btn btn-outline-secondary fw-bold" onClick={closeConfirmDialog}>Cancel</button>
-                <button 
-                  type="button" 
-                  className={`btn fw-bold px-4 ${confirmDialog.newStatus === 'approved' ? 'btn-success' : 'btn-danger'}`} 
+                <button
+                  type="button"
+                  className={`btn fw-bold px-4 ${confirmDialog.newStatus === 'approved' ? 'btn-success' : 'btn-danger'}`}
                   onClick={executeUpdateStatus}
                 >
                   Confirm {confirmDialog.newStatus === 'approved' ? 'Approval' : 'Rejection'}
@@ -188,16 +244,129 @@ function HRDashboard({ user }) {
         </div>
       )}
 
+      {/* --- VERIFICATION MODAL --- */}
+      {isModalOpen && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title fw-bold">AI Certificate Verification</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setIsModalOpen(false)}></button>
+              </div>
+              <div className="modal-body p-4">
+                {isVerifying ? (
+                  <div className="text-center py-5">
+                    <div className="spinner-border text-primary mb-3" role="status"></div>
+                    <h5 className="text-muted">Analyzing Document & Searching Web...</h5>
+                    <p className="small text-secondary">This may take a few moments.</p>
+                  </div>
+                ) : verificationResult?.error ? (
+                  <div className="alert alert-danger py-3">
+                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                    {verificationResult.error}
+                  </div>
+                ) : verificationResult ? (
+                  <div>
+                    {verifyingCategory !== "Contract" && (
+                      <div className="mb-4">
+                        <div className="d-flex align-items-center">
+                          <h6 className="mb-0 me-3 fw-bold text-secondary">Status:</h6>
+                          {hasMissingData ? (
+                            <span className="badge bg-warning text-dark fs-6 px-3 py-2"><i className="bi bi-exclamation-triangle me-1"></i> Validation Search Failed</span>
+                          ) : verificationResult.isValid ? (
+                            <span className="badge bg-success fs-6 px-3 py-2"><i className="bi bi-shield-check me-1"></i> Validated Event</span>
+                          ) : (
+                            <span className="badge bg-danger fs-6 px-3 py-2"><i className="bi bi-shield-x me-1"></i> Unverified / Suspect</span>
+                          )}
+                        </div>
+                        {!hasMissingData && (
+                          <div className="mt-3 p-3 bg-light rounded border">
+                            <h6><i className="bi bi-search me-2"></i>Web Grounding Verdict</h6>
+                            <p className="small text-muted mb-0">{verificationResult.groundingReasoning}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="mb-4">
+                      <h6 className="fw-bold text-secondary mb-2">Layout Anomaly Score</h6>
+                      <div className="d-flex align-items-center">
+                        <div className="progress flex-grow-1 me-3" style={{ height: '10px' }}>
+                          <div
+                            className={`progress-bar ${verificationResult.layoutAnomalyScore > 0.7 ? 'bg-danger' : verificationResult.layoutAnomalyScore > 0.4 ? 'bg-warning' : 'bg-success'}`}
+                            role="progressbar"
+                            style={{ width: `${(verificationResult.layoutAnomalyScore * 100).toFixed(0)}%` }}
+                            aria-valuenow={(verificationResult.layoutAnomalyScore * 100).toFixed(0)}
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                          ></div>
+                        </div>
+                        <span className="fw-bold">{(verificationResult.layoutAnomalyScore * 100).toFixed(1)}%</span>
+                      </div>
+                      <small className="text-muted">Higher scores indicate a higher likelihood of visual manipulation or forgery.</small>
+                    </div>
+
+                    <div className="mt-3 p-3 bg-light rounded border mb-4">
+                      <h6><i className="bi bi-shield-exclamation me-2"></i>Forensic Layout Analysis</h6>
+                      <p className="small text-muted mb-0">{verificationResult.anomalyReasoning}</p>
+                    </div>
+
+                    <div className="row mb-4">
+                      <div className="col-md-12">
+                        <h6 className="fw-bold text-secondary mb-3">Extracted Data</h6>
+                        <ul className="list-group list-group-flush border rounded">
+                          <li className="list-group-item bg-light"><strong>Issuer:</strong> {verificationResult.extractedData?.issuer}</li>
+                          <li className="list-group-item"><strong>Topic:</strong> {verificationResult.extractedData?.topic}</li>
+                          <li className="list-group-item bg-light"><strong>Date:</strong> {verificationResult.extractedData?.date}</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    {hasMissingData && (
+                      <div className="alert alert-warning py-3">
+                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
+                        The AI was unable to execute a verification search because core identity parameters (Issuer or Topic) were missing from the extraction. Please review the document manually.
+                      </div>
+                    )}
+
+                    {verifyingCategory !== "Contract" && !hasMissingData && (
+                      <div>
+                        <h6 className="fw-bold text-secondary mb-3">Reference Sources</h6>
+                        {verificationResult.referenceUrls && verificationResult.referenceUrls.length > 0 ? (
+                          <ul className="list-group border rounded">
+                            {verificationResult.referenceUrls.map((url, i) => (
+                              <li key={i} className="list-group-item text-truncate">
+                                <i className="bi bi-globe me-2 text-primary"></i>
+                                <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-muted fst-italic">No reference URLs provided.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+              <div className="modal-footer bg-light">
+                <button type="button" className="btn btn-outline-secondary fw-bold" onClick={() => setIsModalOpen(false)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- CONDITIONAL UI: Show Edit Form OR the Table --- */}
       {editingDoc ? (
-        
+
         /* THE EDIT FORM */
         <div className="card shadow-sm border-0 rounded-3 p-4 bg-white">
           <div className="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
             <h5 className="fw-bold text-primary mb-0"><i className="bi bi-pencil-square me-2"></i> Edit Credential Details</h5>
             <button className="btn btn-outline-secondary btn-sm" onClick={() => setEditingDoc(null)}>Cancel</button>
           </div>
-          
+
           <form onSubmit={handleEditSubmit}>
             <div className="row">
               <div className="col-md-6 mb-3">
@@ -292,6 +461,9 @@ function HRDashboard({ user }) {
                       <div className="d-flex justify-content-center gap-2 mb-2">
                         <button onClick={() => startEditing(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100">
                           <i className="bi bi-pencil-square me-1"></i> Edit Data
+                        </button>
+                        <button onClick={() => handleVerify(faculty)} className="btn btn-sm btn-outline-info fw-bold px-3 w-100" title="Verify Certificate">
+                          <i className="bi bi-search me-1"></i> Verify
                         </button>
                       </div>
                       <div className="d-flex justify-content-center gap-2">
