@@ -22,7 +22,7 @@ body {
   border-bottom: 1px solid #334155;
 }
 
-.nav-link {
+.sidebar .nav-link {
   color: #cbd5e1 !important;
   padding: 12px 20px;
   margin: 5px 15px;
@@ -30,13 +30,13 @@ body {
   transition: all 0.3s;
 }
 
-.nav-link:hover {
+.sidebar .nav-link:hover {
   background-color: #334155;
   color: white !important;
 }
 
-.nav-link.active {
-  background-color: #3b82f6; /* The blue active state */
+.sidebar .nav-link.active {
+  background-color: #3b82f6 !important; /* The blue active state */
   color: white !important;
 }
 

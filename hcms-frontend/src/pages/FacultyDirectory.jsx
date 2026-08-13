@@ -20,7 +20,7 @@ const FacultyDirectory = () => {
   const VISIBLE_SUBJECTS_LIMIT = 5;
 
   // 1. Retrieve the token from the session object
-  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
   const token = savedUser?.token;
 
   useEffect(() => {
@@ -119,6 +119,21 @@ const FacultyDirectory = () => {
   const openViewer = (url, title) => url ? setPreviewDoc({ isOpen: true, url, title }) : alert("No file attached.");
   const closeViewer = () => setPreviewDoc({ isOpen: false, url: '', title: '' });
   const closeProfile = () => setSelectedFaculty(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (previewDoc.isOpen) {
+          closeViewer();
+        } else if (selectedFaculty) {
+          closeProfile();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [previewDoc.isOpen, selectedFaculty]);
+
 
   const handleOpenProfile = (faculty) => {
     setSelectedFaculty(faculty);

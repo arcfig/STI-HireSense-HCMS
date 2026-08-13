@@ -2,10 +2,10 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const express = require('express');
 const router = express.Router();
-const Faculty = require('../models/Faculty'); 
+const Faculty = require('../models/Faculty');
 const { cloudinary, upload } = require('../config/cloudinary');
-const User = require('../models/User'); 
-const bcrypt = require('bcryptjs'); 
+const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 const Department = require('../models/Department');
 const Program = require('../models/Program');
 const Subject = require('../models/Subject');
@@ -44,42 +44,42 @@ router.post('/extract', upload.single('document'), async (req, res) => {
     
     You MUST return ONLY a valid JSON object. Do not use markdown.
     Example format: {"firstName": "John", "lastName": "Doe", "documentType": "Faculty Evaluation", "documentTitle": "Performance Evaluation", "department": "Information Technology", "dateReceived": "2026-01-26", "expirationDate": "", "issuingInstitution": "STI", "academicYear": "SY 2025-2026", "term": "Term 1", "evaluationRating": 4.35, "tags": ""}`;
-    const model = genAI.getGenerativeModel({ 
+    const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
         responseMimeType: "application/json"
       }
     });
-    
+
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let result;
-    let retries = 3; 
+    let retries = 3;
 
     while (retries > 0) {
       try {
         result = await model.generateContent([prompt, filePart]);
-        break; 
+        break;
       } catch (apiError) {
         if (apiError.status === 503 && retries > 1) {
           console.warn(`[Extraction API 503] Server overloaded. Retrying... (${retries - 1} attempts left)`);
-          await delay(2500); 
+          await delay(2500);
           retries--;
         } else {
-          throw apiError; 
+          throw apiError;
         }
       }
     }
-    
+
     const rawText = result.response.text();
     let extractedData;
-    
+
     try {
-        extractedData = JSON.parse(rawText);
+      extractedData = JSON.parse(rawText);
     } catch (parseError) {
-        console.error("Failed to parse Gemini JSON:", rawText);
-        return res.status(500).json({ error: "AI returned an unparsable format. Please try again." });
+      console.error("Failed to parse Gemini JSON:", rawText);
+      return res.status(500).json({ error: "AI returned an unparsable format. Please try again." });
     }
-    
+
     res.status(200).json(extractedData);
 
   } catch (error) {
@@ -127,13 +127,13 @@ router.get('/approved', verifyToken, async (req, res) => {
 // --------------------------------------------------------
 router.put('/status/:id', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
-    const { id } = req.params;     
-    const { status, remarks } = req.body;   
+    const { id } = req.params;
+    const { status, remarks } = req.body;
 
     const updatedFaculty = await Faculty.findByIdAndUpdate(
-      id, 
-      { status: status, remarks: remarks || '' }, 
-      { new: true } 
+      id,
+      { status: status, remarks: remarks || '' },
+      { new: true }
     );
 
     if (!updatedFaculty) return res.status(404).json({ error: "Document not found." });
@@ -163,7 +163,7 @@ router.put('/status/:id', verifyToken, requireRole(['admin', 'academic_head', 'p
 router.put('/edit/:id', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { firstName, lastName, department, documentTitle, documentType, tags } = req.body;
-    
+
     let updatedTags = tags;
     if (typeof tags === 'string') {
       updatedTags = tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
@@ -172,7 +172,7 @@ router.put('/edit/:id', verifyToken, requireRole(['admin', 'academic_head', 'pro
     const updatedFaculty = await Faculty.findByIdAndUpdate(
       req.params.id,
       { firstName, lastName, department, documentTitle, documentType, tags: updatedTags },
-      { returnDocument: 'after' } 
+      { returnDocument: 'after' }
     );
 
     if (!updatedFaculty) {
@@ -194,7 +194,7 @@ router.post('/match', verifyToken, requireRole(['admin', 'academic_head', 'progr
     const { requirements } = req.body;
     if (!requirements) return res.status(400).json({ error: "Please provide job requirements." });
 
-    const User = require('../models/User'); 
+    const User = require('../models/User');
     const [candidates, users] = await Promise.all([
       Faculty.find({ status: 'approved' }),
       User.find({ isArchived: { $ne: true } }, '-passwordHash')
@@ -223,7 +223,7 @@ router.post('/match', verifyToken, requireRole(['admin', 'academic_head', 'progr
         id: profile.id, name: profile.name, department: profile.department,
         skills: Array.from(profile.tags), skillRatings: matchedUser?.skillRatings || {}, documents: profile.documents
       };
-    }).filter(Boolean); 
+    }).filter(Boolean);
 
     if (candidateData.length === 0) return res.status(404).json({ error: "No active candidates available for matching." });
 
@@ -233,38 +233,38 @@ router.post('/match', verifyToken, requireRole(['admin', 'academic_head', 'progr
     Rank the best matches. Return ONLY a JSON array of objects formatted exactly like this:
     [{"id": "THE_ID_STRING", "score": 85, "reason": "1-2 short sentences explaining why."}]`;
 
-    const model = genAI.getGenerativeModel({ 
+    const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: { responseMimeType: "application/json" }
     });
-    
+
     const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
     let result;
-    let retries = 3; 
+    let retries = 3;
 
     while (retries > 0) {
       try {
         result = await model.generateContent(prompt);
-        break; 
+        break;
       } catch (apiError) {
         if (apiError.status === 503 && retries > 1) {
           console.warn(`[API 503] Google server overloaded. Retrying... (${retries - 1} attempts left)`);
-          await delay(2000); 
+          await delay(2000);
           retries--;
         } else {
-          throw apiError; 
+          throw apiError;
         }
       }
     }
-    
+
     let matchResults;
     try {
-        matchResults = JSON.parse(result.response.text());
+      matchResults = JSON.parse(result.response.text());
     } catch (parseError) {
-        console.error("Failed to parse Gemini JSON:", result.response.text());
-        return res.status(500).json({ error: "AI returned an unparsable format." });
+      console.error("Failed to parse Gemini JSON:", result.response.text());
+      return res.status(500).json({ error: "AI returned an unparsable format." });
     }
-    
+
     const finalMatches = matchResults.map(match => {
       const profile = candidateData.find(c => c.id === match.id);
       if (!profile) return null;
@@ -290,7 +290,7 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
     if (req.file) {
       const b64 = Buffer.from(req.file.buffer).toString("base64");
       let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
-      
+
       const cldRes = await cloudinary.uploader.upload(dataURI, {
         resource_type: "auto",
         folder: "HCMS_Certificates"
@@ -301,28 +301,28 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
     let tagsArray = [];
 
     if (documentType === 'Certificate') {
-      let aiInput = []; 
+      let aiInput = [];
 
       if (req.file) {
         const b64 = Buffer.from(req.file.buffer).toString("base64");
         const filePart = { inlineData: { data: b64, mimeType: req.file.mimetype } };
         const prompt = `You are a highly accurate HR data extraction AI. Read the attached document. Extract a list of key skills, certifications, and technologies. Return ONLY a JSON object containing a "tags" array of strings. Example: {"tags": ["Java", "Cloud Computing"]}`;
-        
+
         aiInput = [prompt, filePart];
       } else {
         const prompt = `Generate exactly 3 professional skill tags for a faculty member in the ${department} department. Return ONLY a JSON object containing a "tags" array of strings.`;
-        
+
         aiInput = [prompt];
       }
 
-      const model = genAI.getGenerativeModel({ 
+      const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
         generationConfig: { responseMimeType: "application/json" }
       });
-      
+
       const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
       let result = null;
-      let retries = 3; 
+      let retries = 3;
 
       while (retries > 0) {
         try {
@@ -335,11 +335,11 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
             retries--;
           } else {
             console.error(`[AI Bypass] Gemini API failed: ${apiError.message}. Proceeding without secondary AI tags.`);
-            break; 
+            break;
           }
         }
       }
-      
+
       if (result) {
         try {
           const aiText = result.response.text();
@@ -359,9 +359,9 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
 
     const nameRegex = new RegExp(`^${firstWord}\\b.*\\b${lastWord}$`, 'i');
     const existingUser = await User.findOne({ name: { $regex: nameRegex } });
-    
+
     const fullName = `${firstName} ${lastName}`;
-    
+
     if (!existingUser) {
       const baseUsername = `${firstName.toLowerCase().replace(/\s+/g, '')}.${lastName.toLowerCase().replace(/\s+/g, '')}`;
       let uniqueUsername = baseUsername;
@@ -388,20 +388,20 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
       } else if (Array.isArray(req.body.tags)) {
         frontendTags = req.body.tags;
       }
-      formattedTags = [...new Set([...formattedTags, ...frontendTags])]; 
+      formattedTags = [...new Set([...formattedTags, ...frontendTags])];
     }
 
     const newFaculty = new Faculty({
-      firstName, lastName, department, 
-      documentTitle, 
-      documentType, 
+      firstName, lastName, department,
+      documentTitle,
+      documentType,
       issuingInstitution: req.body.issuingInstitution,
       dateReceived: req.body.dateReceived,
       expirationDate: req.body.expirationDate,
-      documentUrl: fileUrl, 
+      documentUrl: fileUrl,
       tags: formattedTags,
       status: finalStatus,
-      
+
       academicYear: req.body.academicYear || '',
       term: req.body.term || '',
       contractStart: req.body.contractStart || '',
@@ -437,7 +437,7 @@ router.get('/subjects/hierarchy', verifyToken, requireRole(['admin', 'academic_h
 
       if (!acc[dept]) acc[dept] = {};
       if (!acc[dept][prog]) acc[dept][prog] = [];
-      
+
       acc[dept][prog].push({
         courseCode: sub.courseCode,
         subjectName: sub.subjectName
@@ -459,11 +459,11 @@ router.get('/subjects/hierarchy', verifyToken, requireRole(['admin', 'academic_h
 router.get('/subjects/:courseCode/faculty', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { courseCode } = req.params;
-    
-    const eligibleFaculty = await Faculty.find({ 
+
+    const eligibleFaculty = await Faculty.find({
       eligibleSubjects: courseCode,
-      status: 'approved' 
-    }).select('firstName lastName department tags'); 
+      status: 'approved'
+    }).select('firstName lastName department tags');
 
     res.status(200).json(eligibleFaculty);
   } catch (error) {
@@ -472,119 +472,7 @@ router.get('/subjects/:courseCode/faculty', verifyToken, requireRole(['admin', '
   }
 });
 
-// --------------------------------------------------------
-// TEMPORARY SEED ROUTE: Auto-populate the Database (UNSECURED FOR DEFENSE)
-// --------------------------------------------------------
-router.get('/seed-subjects', async (req, res) => {
-  try {
-    try { await Subject.collection.drop(); } catch (e) {} 
-    try { await Program.collection.drop(); } catch (e) {}
-    try { await Department.collection.drop(); } catch (e) {}
 
-    const itDept = new Department({ name: "Information Technology" });
-    const genEdDept = new Department({ name: "General Education" });
-    const peDept = new Department({ name: "Physical Education" });
-    const nstpDept = new Department({ name: "National Service Training" });
-
-    await itDept.save();
-    await genEdDept.save();
-    await peDept.save();
-    await nstpDept.save();
-
-    const bsitProg = new Program({ name: "BSIT", departmentId: itDept._id });
-    await bsitProg.save();
-
-    const subjectsData = [
-      { courseCode: "CITE1004", subjectName: "Introduction to Computing", deptId: itDept._id },
-      { courseCode: "CITE1003", subjectName: "Computer Programming 1", deptId: itDept._id },
-      { courseCode: "GEDC1002", subjectName: "The Contemporary World", deptId: genEdDept._id },
-      { courseCode: "STIC1002", subjectName: "Euthenics 1", deptId: itDept._id },
-      { courseCode: "GEDC1003", subjectName: "The Entrepreneurial Mind", deptId: genEdDept._id },
-      { courseCode: "GEDC1005", subjectName: "Mathematics in the Modern World", deptId: genEdDept._id },
-      { courseCode: "NSTP1008", subjectName: "National Service Training Program 1", deptId: nstpDept._id },
-      { courseCode: "PHED1005", subjectName: "P.E./PATHFIT 1: Movement Competency Training", deptId: peDept._id },
-      { courseCode: "GEDC1008", subjectName: "Understanding the Self", deptId: genEdDept._id },
-      
-      { courseCode: "CITE1006", subjectName: "Computer Programming 2", deptId: itDept._id },
-      { courseCode: "COSC1002", subjectName: "Discrete Structures 1 (Discrete Mathematics)", deptId: itDept._id },
-      { courseCode: "GEDC1010", subjectName: "Art Appreciation", deptId: genEdDept._id },
-      { courseCode: "GEDC1009", subjectName: "Ethics", deptId: genEdDept._id },
-      { courseCode: "NSTP1010", subjectName: "National Service Training Program 2", deptId: nstpDept._id },
-      { courseCode: "PHED1006", subjectName: "P.E./PATHFIT 2: Exercise-based Fitness Activities", deptId: peDept._id },
-      { courseCode: "GEDC1016", subjectName: "Purposive Communication", deptId: genEdDept._id },
-      { courseCode: "GEDC1013", subjectName: "Science, Technology, and Society", deptId: genEdDept._id },
-      { courseCode: "INTE1006", subjectName: "Systems Administration and Maintenance", deptId: itDept._id }
-    ];
-
-    for (const sub of subjectsData) {
-      const newSubject = new Subject({
-        courseCode: sub.courseCode,
-        subjectName: sub.subjectName,
-        programId: bsitProg._id,
-        departmentId: sub.deptId
-      });
-      await newSubject.save();
-    }
-
-    await Faculty.updateMany(
-      {}, 
-      { $set: { eligibleSubjects: [] } } 
-    );
-
-    res.status(200).json({ 
-      message: "SUCCESS: Database seeded with BSIT Year 1 Curriculum." 
-    });
-  } catch (error) {
-    console.error("Seeding Error:", error);
-    res.status(500).json({ error: "Failed to seed database." });
-  }
-});
-
-// --------------------------------------------------------
-// TEMPORARY SEED ROUTE: Defense Accounts (UNSECURED FOR DEFENSE)
-// --------------------------------------------------------
-router.get('/seed-users', async (req, res) => {
-  try {
-    const bcrypt = require('bcryptjs');
-
-    await User.deleteMany({});
-
-    const defaultHash = await bcrypt.hash("password123", 10);
-    const adminHash = await bcrypt.hash("admin123", 10);
-
-    const defenseUsers = [
-      { name: "Faculty Demo", username: "faculty.demo", role: "faculty", passwordHash: defaultHash },
-      { name: "Academic Head", username: "acad.head", role: "academic_head", passwordHash: defaultHash },
-      { name: "Program Head", username: "prog.head", role: "program_head", passwordHash: defaultHash },
-      { name: "System Admin", username: "admin.user", role: "admin", passwordHash: adminHash }
-    ];
-
-    await User.insertMany(defenseUsers);
-
-    res.status(200).json({ 
-      message: "SUCCESS: Database users wiped and strictly reset to the 4 requested accounts." 
-    });
-  } catch (error) {
-    console.error("User Seeding Error:", error);
-    res.status(500).json({ error: "Failed to reset defense accounts." });
-  }
-});
-
-// --------------------------------------------------------
-// TEMPORARY ROUTE: Nuclear Wipe of Faculty Data (UNSECURED FOR DEFENSE)
-// --------------------------------------------------------
-router.get('/wipe-faculty', async (req, res) => {
-  try {
-    try { await Faculty.collection.drop(); } catch (e) {} 
-    
-    res.status(200).json({ 
-      message: "SUCCESS: Faculty directory is now completely empty. Ready for defense testing." 
-    });
-  } catch (error) {
-    console.error("Faculty Wipe Error:", error);
-    res.status(500).json({ error: "Failed to wipe faculty data." });
-  }
-});
 
 // --------------------------------------------------------
 // ROUTE: Fetch User Notifications (Secured: All logged-in users)
@@ -593,7 +481,7 @@ router.get('/notifications/:username', verifyToken, async (req, res) => {
   try {
     const user = await User.findOne({ username: req.params.username });
     if (!user) return res.status(404).json({ error: "User not found." });
-    
+
     const sortedNotifications = user.notifications.sort((a, b) => b.date - a.date);
     res.status(200).json(sortedNotifications);
   } catch (error) {

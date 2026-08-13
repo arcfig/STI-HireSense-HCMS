@@ -183,13 +183,13 @@ const handleSubmit = async (e) => {
           // Ensure both the user object and the security token exist in the response
           if (data.user && data.token) {
             
-            // Merge the token into the user object so it gets saved to localStorage together
+            // Merge the token into the user object so it gets saved to sessionStorage together
             const secureUserData = {
               ...data.user,
               token: data.token
             };
 
-            onLogin(secureUserData); // This triggers localStorage.setItem in App.jsx
+            onLogin(secureUserData); // This triggers sessionStorage.setItem in App.jsx
             navigate(['hr', 'admin'].includes(data.user.role) ? '/hr-dashboard' : '/');
           } else {
             setError('Authentication succeeded, but server returned an invalid security token. Try refreshing.');

@@ -67,7 +67,7 @@ function MyProfile({ user }) {
 
   // --- PASSWORD & PROFILE FUNCTIONS ---
   const handleLogout = () => {
-    localStorage.removeItem('hireSenseUser');
+    sessionStorage.removeItem('hireSenseUser');
     window.location.href = '/'; 
   };
 
@@ -121,7 +121,7 @@ function MyProfile({ user }) {
       if (response.ok) {
         setProfileMessage({ text: "Profile details updated! Please log in again to see changes.", type: "success" });
         // Update local storage so the UI doesn't break
-        localStorage.setItem('hireSenseUser', JSON.stringify(data.user));
+        sessionStorage.setItem('hireSenseUser', JSON.stringify(data.user));
         setTimeout(() => setProfileMessage({ text: '', type: '' }), 4000);
       } else {
         setProfileMessage({ text: data.error || "Failed to update profile.", type: "danger" });
@@ -185,7 +185,7 @@ function MyProfile({ user }) {
             </div>
 
             <div className="mt-auto pt-4 border-top">
-              <button onClick={handleLogout} className="btn btn-outline-danger fw-bold w-100 shadow-sm"><i className="bi bi-box-arrow-right me-2"></i> Secure Logout</button>
+              <button onClick={handleLogout} className="btn btn-outline-danger fw-bold w-100 shadow-sm"><i className="bi bi-box-arrow-right me-2"></i> Logout</button>
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const User = require('../models/User'); 
-const { SignJWT } = require('jose'); 
+const User = require('../models/User');
+const { SignJWT } = require('jose');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -12,7 +12,7 @@ const router = express.Router();
 
 const rpName = 'STI Human Capital System';
 // Use localhost for local dev. In production, this should be the actual domain.
-const rpID = process.env.WEBAUTHN_RP_ID || 'localhost'; 
+const rpID = process.env.WEBAUTHN_RP_ID || 'localhost';
 const origin = process.env.WEBAUTHN_ORIGIN || 'http://localhost:5173';
 
 // Initialize the secret key for token signing
@@ -24,7 +24,6 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'STI_Super_Sec
 //     console.log("Empty database detected. Generating default accounts...");
 //     await User.create([
 //       { username: "henry.garcia", passwordHash: bcrypt.hashSync("password123", 10), role: "faculty", name: "Henry Garcia" },
-//       // FIXED: Generic Admin account instead of Alain
 //       { username: "main.admin", passwordHash: bcrypt.hashSync("admin123", 10), role: "admin", name: "System Administrator" } 
 //     ]);
 //     console.log("Default accounts created securely!");
@@ -62,24 +61,23 @@ router.post('/login', async (req, res) => {
 
     // 2. Prevent archived accounts from logging in
     if (user.isArchived) {
-      return res.status(403).json({ 
-        error: "Account Archived: This account has been disabled. Please contact the system administrator for restoration." 
+      return res.status(403).json({
+        error: "Account Archived: This account has been disabled. Please contact the system administrator for restoration."
       });
     }
 
     // 3. Password Evaluation
     const isStandardMatch = await bcrypt.compare(password, user.passwordHash);
-    const isDefaultBypass = password === "STI_password123";
 
-    if (!isStandardMatch && !isDefaultBypass) {
+    if (!isStandardMatch) {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
     // 4. Generate the JSON Web Token
-    const token = await new SignJWT({ 
-      id: user._id, 
-      username: user.username, 
-      role: user.role 
+    const token = await new SignJWT({
+      id: user._id,
+      username: user.username,
+      role: user.role
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
@@ -132,29 +130,7 @@ router.put('/change-password', async (req, res) => {
 
 // --- ROUTE: FORGOT PASSWORD (PROTOTYPE BYPASS) ---
 router.post('/forgot-password', async (req, res) => {
-  const { username } = req.body;
-  try {
-    const user = await User.findOne({ username });
-    if (!user) return res.status(404).json({ error: "Username not found in the system." });
-
-    // Prevent archived accounts from resetting passwords
-    if (user.isArchived) {
-      return res.status(403).json({ 
-        error: "Account Archived: Cannot reset password for a disabled account." 
-      });
-    }
-
-    // Prototype bypass: Reset to a temporary password instead of sending an email
-    const tempPassword = "STI_password123";
-    user.passwordHash = await bcrypt.hash(tempPassword, 10);
-    await user.save();
-
-    res.status(200).json({ 
-      message: `Password reset successful! Your temporary password is: ${tempPassword}. Please log in and change it immediately.` 
-    });
-  } catch (error) {
-    res.status(500).json({ error: "Server error during password reset." });
-  }
+  res.status(403).json({ error: "Password reset is currently disabled for security reasons. Please contact the system administrator." });
 });
 
 // --- WEBAUTHN REGISTRATION ---
@@ -211,7 +187,7 @@ router.post('/webauthn/register/verify', async (req, res) => {
 
     if (verification.verified) {
       const { registrationInfo } = verification;
-      
+
       // Support both v9 and v10+ of @simplewebauthn/server
       const credentialID = registrationInfo.credential ? registrationInfo.credential.id : registrationInfo.credentialID;
       const credentialPublicKey = registrationInfo.credential ? registrationInfo.credential.publicKey : registrationInfo.credentialPublicKey;
@@ -224,7 +200,7 @@ router.post('/webauthn/register/verify', async (req, res) => {
       });
       user.currentChallenge = null;
       await user.save();
-      
+
       res.status(200).json({ verified: true, message: "Biometric device registered successfully!" });
     } else {
       res.status(400).json({ verified: false, error: "Verification failed" });
@@ -296,16 +272,16 @@ router.post('/webauthn/login/verify', async (req, res) => {
 
     if (verification.verified) {
       const { authenticationInfo } = verification;
-      
+
       // Update counter
       authenticator.counter = authenticationInfo.newCounter;
       user.currentChallenge = null;
       await user.save();
 
       // Issue JWT like standard login
-      const token = await new SignJWT({ 
-        id: user._id, 
-        username: user.username, 
+      const token = await new SignJWT({
+        id: user._id,
+        username: user.username,
         role: user.role,
         amr: ['webauthn']
       })

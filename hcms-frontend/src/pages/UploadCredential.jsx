@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 const UploadCredential = () => {
   // 1. Extract the token and role securely from session
-  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
   const userRole = savedUser.role || 'faculty';
   const token = savedUser.token;
   

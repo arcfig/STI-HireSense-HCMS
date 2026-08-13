@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 const FacultyPortal = ({ user }) => {
-  const storedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const storedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
   const token = storedUser?.token;
   const role = user?.role || storedUser?.role || 'faculty';
   const name = user?.name || storedUser?.name || 'User';

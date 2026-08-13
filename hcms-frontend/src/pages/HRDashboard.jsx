@@ -21,9 +21,10 @@ function HRDashboard({ user }) {
   const [verificationResult, setVerificationResult] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [verifyingCategory, setVerifyingCategory] = useState("");
+  const [previewDoc, setPreviewDoc] = useState({ isOpen: false, url: '', title: '' });
 
   // 1. Retrieve the token once at the top so all functions can use it
-  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser'));
+  const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser'));
   const token = savedUser?.token;
 
   // --- UPDATED: FETCH WITH TOKEN ---
@@ -65,6 +66,26 @@ function HRDashboard({ user }) {
   const closeConfirmDialog = () => {
     setConfirmDialog({ isOpen: false, facultyId: null, newStatus: '', remarks: '' });
   };
+
+  const openViewer = (url, title) => url ? setPreviewDoc({ isOpen: true, url, title }) : alert("No file attached.");
+  const closeViewer = () => setPreviewDoc({ isOpen: false, url: '', title: '' });
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (previewDoc.isOpen) {
+          closeViewer();
+        } else if (confirmDialog.isOpen) {
+          closeConfirmDialog();
+        } else if (isModalOpen) {
+          setIsModalOpen(false);
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [confirmDialog.isOpen, isModalOpen, previewDoc.isOpen]);
+
 
   // --- UPDATED: STATUS UPDATE WITH TOKEN ---
   const executeUpdateStatus = async () => {
@@ -441,9 +462,12 @@ function HRDashboard({ user }) {
                       <p className="fw-bold text-primary mb-0">{faculty.documentTitle || 'Untitled'}</p>
                       <span className="badge bg-light text-secondary border mt-1">{faculty.documentType || 'Other'}</span>
                       {faculty.documentUrl && (
-                        <a href={faculty.documentUrl} target="_blank" rel="noopener noreferrer" className="d-block mt-2 text-decoration-none small">
+                        <button 
+                          onClick={() => openViewer(faculty.documentUrl, faculty.documentTitle || 'Document Preview')}
+                          className="btn btn-link p-0 text-decoration-none small d-block mt-2 text-start"
+                        >
                           <i className="bi bi-link-45deg"></i> View File
-                        </a>
+                        </button>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -488,6 +512,37 @@ function HRDashboard({ user }) {
           )}
         </div>
       )}
+
+      {/* --- DOCUMENT VIEWER MODAL --- */}
+      {previewDoc.isOpen && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
+            <div className="modal-content bg-dark border-0 shadow-lg">
+              <div className="modal-header border-bottom border-secondary px-4 py-3">
+                <h5 className="modal-title text-white"><i className="bi bi-file-earmark-text text-primary me-2"></i>{previewDoc.title}</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={closeViewer}></button>
+              </div>
+              <div className="modal-body p-0 d-flex justify-content-center align-items-center" style={{ height: '75vh', backgroundColor: '#1e1e1e', overflow: 'hidden' }}>
+                {previewDoc.url.match(/\.(jpeg|jpg|gif|png|webp)(\?.*)?$/i) ? (
+                  <img src={previewDoc.url} alt="Document Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <object data={previewDoc.url} type="application/pdf" width="100%" height="100%" style={{ border: 'none' }}>
+                    <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white">
+                      <p className="mb-3">Browser native PDF viewer is disabled.</p>
+                      <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light">Open Externally</a>
+                    </div>
+                  </object>
+                )}
+              </div>
+              <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
+                <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">Fallback: Open in New Tab</a>
+                <button type="button" className="btn btn-primary fw-bold" onClick={closeViewer}>Close Viewer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

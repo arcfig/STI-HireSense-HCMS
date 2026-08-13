@@ -5,7 +5,7 @@ const ArchivedUsers = () => {
   const [loading, setLoading] = useState(true);
 
   // 1. Retrieve the token once at the top
-  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
   const token = savedUser?.token;
 
   useEffect(() => {

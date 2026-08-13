@@ -19,7 +19,7 @@ const MyPortfolio = ({ user }) => {
   const [selectedEvalTerm, setSelectedEvalTerm] = useState('Overall');
 
   // NEW: Retrieve token and identity securely from session
-  const savedUser = JSON.parse(localStorage.getItem('hireSenseUser') || '{}');
+  const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
   const token = savedUser?.token;
   const storedIdentity = user?.name || savedUser?.name;
 
@@ -99,6 +99,17 @@ const MyPortfolio = ({ user }) => {
   const closeViewer = () => {
     setPreviewDoc({ isOpen: false, url: '', title: '' });
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && previewDoc.isOpen) {
+        closeViewer();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [previewDoc.isOpen]);
+
 
   // 4. Loading & Null States
   if (loading) {

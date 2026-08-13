@@ -32,7 +32,7 @@ function Sidebar({ user, onLogout }) {
     <div className="sidebar bg-dark shadow" style={{ width: '260px', color: 'white', paddingTop: '20px', display: 'flex', flexDirection: 'column', zIndex: 1000 }}>
       <div className="sidebar-brand px-4 py-3 mb-3 fw-bold border-bottom border-secondary fs-5" style={{ color: '#ffd700' }}>
         <i className="bi bi-buildings-fill me-2" style={{ color: '#0033a0' }}></i>
-        STI Human Capital
+        HireSense
       </div>
       
       <div className="nav flex-column flex-grow-1 overflow-auto">
@@ -80,20 +80,15 @@ function Sidebar({ user, onLogout }) {
         )}
       </div>
 
-      <div className="p-3 mt-auto border-top border-secondary">
-        <button className="btn btn-outline-light w-100 fw-bold" onClick={onLogout}>
-          <i className="bi bi-box-arrow-left me-2"></i> Sign Out
-        </button>
-      </div>
     </div>
   );
 }
 
 function App() {
   const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('hireSenseUser');
+    const savedUser = sessionStorage.getItem('hireSenseUser');
     if (!savedUser || savedUser === "undefined") return null;
-    try { return JSON.parse(savedUser); } catch (error) { localStorage.removeItem('hireSenseUser'); return null; }
+    try { return JSON.parse(savedUser); } catch (error) { sessionStorage.removeItem('hireSenseUser'); return null; }
   });
 
   const [notifications, setNotifications] = useState([]);
@@ -165,12 +160,12 @@ function App() {
 
   const handleLogin = (userData) => {
     setUser(userData);
-    localStorage.setItem('hireSenseUser', JSON.stringify(userData));
+    sessionStorage.setItem('hireSenseUser', JSON.stringify(userData));
   };
 
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('hireSenseUser');
+    sessionStorage.removeItem('hireSenseUser');
   };
 
   return (
