@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { startAuthentication } from '@simplewebauthn/browser';
+import { APP_NAME } from '../config';
 
 function Login({ onLogin }) {
   // Initialize navigation to prevent crashes after login
@@ -215,9 +216,9 @@ const handleSubmit = async (e) => {
       >
         
         {/* STI Branded Header */}
-        <div className="text-center py-4" style={{ backgroundColor: '#0033a0' }}>
-          <h3 className="fw-bold mb-0" style={{ color: '#ffd700' }}>
-            <i className="bi bi-buildings-fill me-2"></i>STI Human Capital System
+        <div className="text-center py-4" style={{ backgroundColor: 'var(--brand-primary-bg)' }}>
+          <h3 className="fw-bold mb-0" style={{ color: 'var(--brand-primary-text)' }}>
+            <i className="bi bi-buildings-fill me-2"></i>{APP_NAME}
           </h3>
           <p className="text-white-50 small mb-0 mt-1">
             {view === 'register' ? "Create your faculty account" : view === 'forgot' ? "Reset your password" : "Sign in to your account"}
@@ -370,9 +371,9 @@ const handleSubmit = async (e) => {
           {/* Navigation Toggles */}
           <div className="mt-4 text-center">
             {view === 'login' ? (
-              <span className="text-muted small">Don't have an account? <a href="#" className="fw-bold text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('register'); }} style={{ color: '#0033a0' }}>Sign up here</a></span>
+              <span className="text-muted small">Don't have an account? <a href="#" className="fw-bold text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('register'); }} style={{ color: 'var(--brand-primary-bg)' }}>Sign up here</a></span>
             ) : (
-              <span className="text-muted small">Return to <a href="#" className="fw-bold text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('login'); }} style={{ color: '#0033a0' }}>Sign In</a></span>
+              <span className="text-muted small">Return to <a href="#" className="fw-bold text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('login'); }} style={{ color: 'var(--brand-primary-bg)' }}>Sign In</a></span>
             )}
           </div>
           

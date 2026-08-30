@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { APP_NAME } from './config';
 import { useState, useEffect, useRef } from 'react';
+import { Toaster, toast } from 'react-hot-toast';
 import ManageUsers from './pages/ManageUsers';
 import FacultyPortal from './pages/FacultyPortal';
 import HRDashboard from './pages/HRDashboard';
@@ -29,10 +31,10 @@ function Sidebar({ user, onLogout }) {
   const getLinkClass = (path) => `nav-link px-4 py-2 my-1 mx-3 rounded ${location.pathname === path ? 'active' : 'text-light'}`;
 
   return (
-    <div className="sidebar bg-dark shadow" style={{ width: '260px', color: 'white', paddingTop: '20px', display: 'flex', flexDirection: 'column', zIndex: 1000 }}>
-      <div className="sidebar-brand px-4 py-3 mb-3 fw-bold border-bottom border-secondary fs-5" style={{ color: '#ffd700' }}>
-        <i className="bi bi-buildings-fill me-2" style={{ color: '#0033a0' }}></i>
-        HireSense
+    <div className="sidebar bg-dark shadow" style={{ width: '260px', color: 'white', paddingTop: '0', display: 'flex', flexDirection: 'column', zIndex: 1000 }}>
+      <div className="sidebar-brand px-4 d-flex align-items-center mb-3 fw-bold border-bottom border-secondary fs-5" style={{ color: 'var(--brand-primary-text)', height: '70px' }}>
+        <i className="bi bi-buildings-fill me-2" style={{ color: 'var(--brand-primary-text)' }}></i>
+        {APP_NAME}
       </div>
       
       <div className="nav flex-column flex-grow-1 overflow-auto">
@@ -121,7 +123,30 @@ function App() {
       fetchNotifications();
       // Optional polling every 30 seconds
       const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
+
+      // --- GLOBAL SSE LISTENER FOR BACKGROUND TASKS ---
+      const sse = new EventSource(`${import.meta.env.VITE_API_BASE_URL}/api/verify-certificate/stream?token=${user.token}`);
+      
+      sse.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'verificationComplete') {
+          if (data.status === 'verified') {
+            toast.success(`Verification complete for ${data.facultyName}. Status: Verified!`);
+          } else if (data.status === 'flagged') {
+            toast.error(`Verification complete for ${data.facultyName}. Status: Flagged!`);
+          } else {
+            toast.error(`Verification failed for ${data.facultyName}.`);
+          }
+          // Increment global unread count virtually or refetch notifications
+          fetchNotifications();
+          window.dispatchEvent(new CustomEvent('verificationCompleted', { detail: data }));
+        }
+      };
+
+      return () => {
+        clearInterval(interval);
+        sse.close();
+      };
     }
   }, [user]);
 
@@ -170,6 +195,7 @@ function App() {
 
   return (
     <Router>
+      <Toaster position="top-right" />
       <div className="d-flex" style={{ backgroundColor: '#f8fafc', height: '100vh', overflow: 'hidden' }}>
         {user ? (
           <>
@@ -177,7 +203,7 @@ function App() {
             
             <div className="d-flex flex-column flex-grow-1" style={{ width: 'calc(100% - 260px)' }}>
               
-              <div className="bg-white shadow-sm px-4 py-2 d-flex justify-content-end align-items-center border-bottom z-3">
+              <div className="bg-white shadow-sm px-4 d-flex justify-content-end align-items-center border-bottom z-3" style={{ height: '70px' }}>
                 
                 {/* --- NOTIFICATION BELL --- */}
                 <div className="position-relative me-4" ref={notifRef}>

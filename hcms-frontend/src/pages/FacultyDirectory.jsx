@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 
 const FacultyDirectory = () => {
@@ -200,7 +201,7 @@ const FacultyDirectory = () => {
       <div className="flex-shrink-0">
         <div className="d-flex justify-content-between align-items-end mb-3">
           <div>
-            <h2 className="fw-bold text-primary mb-1">Faculty Directory</h2>
+            <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>Faculty Directory</h2>
             <p className="text-muted mb-0">Browse and filter verified institutional competencies.</p>
           </div>
         </div>
@@ -256,8 +257,8 @@ const FacultyDirectory = () => {
                       
                       <div className="d-flex align-items-center mb-3">
                         <div 
-                          className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold me-3 shadow-sm" 
-                          style={{ width: '50px', height: '50px', fontSize: '1.2rem' }}
+                          className="rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" 
+                          style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}
                         >
                           {getInitials(faculty.fullName)}
                         </div>
@@ -268,7 +269,7 @@ const FacultyDirectory = () => {
                       </div>
                       
                       <div className="mb-3 border-bottom pb-3">
-                        <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2">
+                        <span className="badge rounded-pill px-3 py-2" style={{ backgroundColor: 'var(--bg-neutral-tint)', color: 'var(--text-tint)', border: '1px solid var(--border-tint)' }}>
                           <i className="bi bi-patch-check-fill me-1"></i> {faculty.documentCount} Verified Credential{faculty.documentCount !== 1 ? 's' : ''}
                         </span>
                       </div>
@@ -294,7 +295,7 @@ const FacultyDirectory = () => {
                     
                     <div className="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
                       <button 
-                        className="btn btn-outline-primary w-100 fw-bold" 
+                        className="btn btn-neutral-outline w-100 fw-bold" 
                         onClick={() => handleOpenProfile(faculty)}
                       >
                         View Full Profile
@@ -312,18 +313,18 @@ const FacultyDirectory = () => {
         )}
       </div>
 
-      {selectedFaculty && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', overflowY: 'auto', zIndex: 1050 }}>
-          <div className="modal-dialog modal-xl modal-dialog-centered">
+      {selectedFaculty && createPortal(
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', overflowY: 'auto', zIndex: 1055, position: 'fixed', inset: 0 }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content bg-light border-0 shadow-lg my-4">
               
-              <div className="modal-header border-bottom px-4 py-3 bg-white sticky-top">
+              <div className="modal-header px-4 py-3 bg-white sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                 <div className="d-flex align-items-center">
-                  <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold me-3" style={{ width: '50px', height: '50px', fontSize: '1.2rem' }}>
+                  <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}>
                       {getInitials(selectedFaculty.fullName)}
                   </div>
                   <div>
-                    <h4 className="modal-title fw-bold text-primary mb-0">{selectedFaculty.fullName}</h4>
+                    <h4 className="modal-title fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{selectedFaculty.fullName}</h4>
                     <p className="text-muted mb-0 small">Department: <strong>{selectedFaculty.department}</strong></p>
                   </div>
                 </div>
@@ -369,7 +370,7 @@ const FacultyDirectory = () => {
                             </div>
                           </>
                         ) : (
-                          <div className="py-5 my-4">
+                          <div className="py-5 my-4 d-flex align-items-center justify-content-center flex-column flex-grow-1">
                             <i className="bi bi-bar-chart text-muted opacity-25 display-1"></i>
                             <p className="text-muted mt-3 fst-italic">No evaluation records available.</p>
                           </div>
@@ -393,8 +394,11 @@ const FacultyDirectory = () => {
                         </div>
                         {selectedFaculty.tags.length > VISIBLE_SKILLS_LIMIT && (
                           <button 
-                            className="btn btn-sm btn-link text-decoration-none p-0 fw-bold"
+                            className="btn btn-sm btn-link p-0 fw-bold hover-underline"
                             onClick={() => setShowAllSkills(!showAllSkills)}
+                            style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
+                            onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                            onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
                           >
                             {showAllSkills ? 'Show Less' : `+ ${selectedFaculty.tags.length - VISIBLE_SKILLS_LIMIT} More Skills...`}
                           </button>
@@ -443,11 +447,14 @@ const FacultyDirectory = () => {
                   {Object.keys(categories).map(tabName => (
                     <li className="nav-item" key={tabName}>
                       <button 
-                        className={`nav-link ${activeTab === tabName ? 'border-bottom-0 shadow-sm' : 'border-0'}`}
+                        className={`nav-link ${activeTab === tabName ? 'shadow-sm' : 'border-0'}`}
                         onClick={() => setActiveTab(tabName)}
                         style={{ 
                           backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
-                          color: activeTab === tabName ? '#0d6efd' : '#6c757d',
+                          color: activeTab === tabName ? 'var(--text-tint)' : 'var(--text-muted)',
+                          border: 'none',
+                          borderBottom: activeTab === tabName ? '2px solid var(--text-tint)' : 'none',
+                          fontWeight: activeTab === tabName ? 'bold' : 'normal',
                           cursor: 'pointer'
                         }}
                       >
@@ -547,7 +554,8 @@ const FacultyDirectory = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

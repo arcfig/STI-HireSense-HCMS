@@ -40,8 +40,11 @@ const facultySchema = new mongoose.Schema({
   contractStart: { type: String, default: '' },
   contractEnd: { type: String, default: '' },
   intent: { type: String, default: '' },
-  offenseType: { type: String, default: '' }
+  offenseType: { type: String, default: '' },
   
+  // Verification Tracking
+  verificationStatus: { type: String, default: 'idle', enum: ['idle', 'verifying', 'verified', 'flagged', 'failed'] },
+  verificationData: { type: Object, default: {} }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Faculty', facultySchema);

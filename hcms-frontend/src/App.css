@@ -1,5 +1,22 @@
 /* App.css - Main UI Styles */
 
+:root {
+  --brand-primary-bg: #08612f;
+  --brand-primary-text: #f3ffde;
+  --semantic-error: #cf2e2e;
+  --semantic-warning: #ff6900;
+  --semantic-info: #0693e3;
+  --surface-neutral: #ffffff;
+  --border-neutral: #e2e8f0;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --bg-neutral-light: #f1f5f9;
+  --bg-neutral-tint: #f0f9ff;
+  --border-subtle: #cbd5e1;
+  --border-tint: #e0f2fe;
+  --text-tint: #0369a1;
+}
+
 body {
   background-color: #f8fafc; /* The light gray background from the mockup */
   margin: 0;
@@ -36,8 +53,8 @@ body {
 }
 
 .sidebar .nav-link.active {
-  background-color: #3b82f6 !important; /* The blue active state */
-  color: white !important;
+  background-color: var(--brand-primary-bg) !important;
+  color: var(--brand-primary-text) !important;
 }
 
 /* Main Content Area */
@@ -46,10 +63,99 @@ body {
 }
 
 /* Polished Cards */
-.ui-card {
-  background: white;
+.ui-card, .card {
+  background: var(--surface-neutral);
   border-radius: 8px;
-  border: none;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-subtle) !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
   margin-bottom: 30px;
+}
+
+/* 5. Global Button and Form Standardization */
+.btn-primary, button[type="submit"] {
+  background-color: var(--brand-primary-bg) !important;
+  color: var(--surface-neutral) !important;
+  border: none !important;
+}
+
+.btn-outline-primary, .btn-outline-secondary {
+  border-color: var(--brand-primary-bg) !important;
+  color: var(--brand-primary-bg) !important;
+  background-color: transparent;
+}
+
+/* Hover, Focus, and Active States for all interactive buttons */
+.btn-primary:hover, .btn-primary:focus, .btn-primary:active, .btn-primary.active,
+button[type="submit"]:hover, button[type="submit"]:focus, button[type="submit"]:active, button[type="submit"].active,
+.btn-outline-primary:hover, .btn-outline-primary:focus, .btn-outline-primary:active, .btn-outline-primary.active,
+.btn-outline-secondary:hover, .btn-outline-secondary:focus, .btn-outline-secondary:active, .btn-outline-secondary.active {
+  filter: brightness(0.9) !important;
+  background-color: var(--brand-primary-bg) !important;
+  color: var(--surface-neutral) !important;
+  border-color: var(--brand-primary-bg) !important;
+}
+
+/* 6. Badges and Iconography */
+.badge.bg-primary, .bg-primary {
+  background-color: var(--brand-primary-bg) !important;
+}
+
+.text-primary, .bi.text-primary {
+  color: var(--brand-primary-bg) !important;
+}
+
+.border-primary {
+  border-color: var(--brand-primary-bg) !important;
+}
+
+/* 7. Typography and Links */
+/* Links default to bootstrap blue per user request */
+h1, h2, h3, h4, h5, h6, .card-title {
+  color: var(--text-main);
+}
+
+/* 8. Tab Navigation Correction */
+.nav-tabs .nav-link.active {
+  color: var(--brand-primary-bg) !important;
+  border-bottom: 2px solid var(--brand-primary-bg) !important;
+}
+
+/* 9. Semantic Color Overrides (Verify/Warning) */
+.btn-outline-info {
+  border-color: var(--semantic-info) !important;
+  color: var(--semantic-info) !important;
+  background-color: transparent !important;
+}
+.btn-outline-info:hover, .btn-outline-info:focus, .btn-outline-info:active, .btn-outline-info.active, .show > .btn-outline-info.dropdown-toggle {
+  background-color: var(--semantic-info) !important;
+  border-color: var(--semantic-info) !important;
+  color: var(--surface-neutral) !important;
+}
+
+.badge.bg-warning, .bg-warning {
+  background-color: var(--semantic-warning) !important;
+  color: var(--surface-neutral) !important;
+}
+
+/* 10. Forms and Focus States */
+.form-control:focus, .form-select:focus {
+  border-color: rgba(8, 97, 47, 0.2) !important;
+  box-shadow: 0 0 0 0.25rem rgba(8, 97, 47, 0.1) !important;
+}
+
+/* 11. Neutral Text and Actions (Directory Polish) */
+.text-muted {
+  color: var(--text-muted) !important;
+}
+
+.btn-neutral-outline {
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-main) !important;
+  background-color: var(--surface-neutral) !important;
+}
+
+.btn-neutral-outline:hover, .btn-neutral-outline:focus, .btn-neutral-outline:active {
+  background-color: var(--bg-neutral-light) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-subtle) !important;
 }

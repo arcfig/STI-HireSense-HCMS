@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
 
 function HRDashboard({ user }) {
   const [pendingFaculty, setPendingFaculty] = useState([]);
@@ -16,24 +17,20 @@ function HRDashboard({ user }) {
     remarks: ''
   });
 
-  // --- VERIFICATION STATE ---
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [verificationResult, setVerificationResult] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [verifyingCategory, setVerifyingCategory] = useState("");
   const [previewDoc, setPreviewDoc] = useState({ isOpen: false, url: '', title: '' });
+  const [reportDoc, setReportDoc] = useState(null);
 
   // 1. Retrieve the token once at the top so all functions can use it
   const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser'));
   const token = savedUser?.token;
 
-  // --- UPDATED: FETCH WITH TOKEN ---
+  // --- FETCH PENDING ---
   const fetchPending = async () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/pending`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -53,6 +50,15 @@ function HRDashboard({ user }) {
     fetchPending();
   }, []);
 
+  // Listen to global verification events to refresh the table automatically
+  useEffect(() => {
+    const handleVerificationComplete = () => {
+      fetchPending();
+    };
+    window.addEventListener('verificationCompleted', handleVerificationComplete);
+    return () => window.removeEventListener('verificationCompleted', handleVerificationComplete);
+  }, []);
+
   // --- MODAL HANDLERS ---
   const openConfirmDialog = (id, status) => {
     setConfirmDialog({
@@ -67,7 +73,7 @@ function HRDashboard({ user }) {
     setConfirmDialog({ isOpen: false, facultyId: null, newStatus: '', remarks: '' });
   };
 
-  const openViewer = (url, title) => url ? setPreviewDoc({ isOpen: true, url, title }) : alert("No file attached.");
+  const openViewer = (url, title) => url ? setPreviewDoc({ isOpen: true, url, title }) : toast.error("No file attached.");
   const closeViewer = () => setPreviewDoc({ isOpen: false, url: '', title: '' });
 
   useEffect(() => {
@@ -77,17 +83,16 @@ function HRDashboard({ user }) {
           closeViewer();
         } else if (confirmDialog.isOpen) {
           closeConfirmDialog();
-        } else if (isModalOpen) {
-          setIsModalOpen(false);
+        } else if (reportDoc) {
+          setReportDoc(null);
         }
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [confirmDialog.isOpen, isModalOpen, previewDoc.isOpen]);
+  }, [confirmDialog.isOpen, previewDoc.isOpen]);
 
-
-  // --- UPDATED: STATUS UPDATE WITH TOKEN ---
+  // --- STATUS UPDATE ---
   const executeUpdateStatus = async () => {
     const { facultyId, newStatus, remarks } = confirmDialog;
 
@@ -95,72 +100,56 @@ function HRDashboard({ user }) {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/status/${facultyId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Authorization': `Bearer ${token}`, 
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ status: newStatus, remarks: remarks })
       });
 
       if (response.ok) {
-        setMessage(`Document successfully ${newStatus}!`);
+        toast.success(`Document successfully ${newStatus}!`);
         fetchPending();
         closeConfirmDialog();
-        setTimeout(() => setMessage(''), 3000);
       } else {
-        setMessage('Failed to update status.');
+        toast.error('Failed to update status.');
         closeConfirmDialog();
       }
     } catch (error) {
-      setMessage('Server error.');
+      toast.error('Server error.');
       closeConfirmDialog();
     }
   };
 
-  // --- VERIFICATION HANDLER ---
+  // --- VERIFICATION HANDLER (ASYNC FIRE AND FORGET) ---
   const handleVerify = async (faculty) => {
     if (!faculty.documentUrl) {
-      setMessage("No document URL available to verify.");
+      toast.error("No document URL available to verify.");
       return;
     }
 
-    setIsVerifying(true);
-    setVerificationResult(null);
-    setIsModalOpen(true);
-    const documentCategory = faculty.documentType || "Certificate";
-    setVerifyingCategory(documentCategory);
+    toast(`AI Verification started for ${faculty.firstName}. You will be notified when complete.`, { icon: '⏳' });
+
+    // Optimistically update UI
+    setPendingFaculty(prev => prev.map(f => f._id === faculty._id ? { ...f, verificationStatus: 'verifying' } : f));
 
     try {
-      const fileResponse = await fetch(faculty.documentUrl);
-      if (!fileResponse.ok) throw new Error("Failed to fetch document file.");
-      const blob = await fileResponse.blob();
-
-      const formData = new FormData();
-      let ext = "pdf";
-      if (blob.type === "image/jpeg") ext = "jpg";
-      if (blob.type === "image/png") ext = "png";
-      formData.append('certificate', blob, `document.${ext}`);
-      formData.append('category', documentCategory);
-
-      const verifyResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/verify-certificate`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/verify-certificate`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         },
-        body: formData
+        body: JSON.stringify({ facultyId: faculty._id })
       });
 
-      const data = await verifyResponse.json();
-
-      if (verifyResponse.ok) {
-        setVerificationResult(data);
-      } else {
-        setVerificationResult({ error: data.error || "Verification failed." });
+      if (!response.ok) {
+        toast.error("Failed to start verification.");
+        fetchPending(); // Revert optimistic update
       }
     } catch (error) {
       console.error("Verification error:", error);
-      setVerificationResult({ error: error.message || "An error occurred during verification." });
-    } finally {
-      setIsVerifying(false);
+      toast.error("An error occurred starting verification.");
+      fetchPending(); // Revert optimistic update
     }
   };
 
@@ -181,33 +170,29 @@ function HRDashboard({ user }) {
     setEditFormData({ ...editFormData, [e.target.name]: e.target.value });
   };
 
-  // --- UPDATED: EDIT SUBMIT WITH TOKEN ---
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/edit/${editingDoc}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(editFormData)
       });
 
       if (response.ok) {
-        setMessage('Document details updated successfully!');
+        toast.success('Document details updated successfully!');
         setEditingDoc(null);
         fetchPending();
-        setTimeout(() => setMessage(''), 3000);
       } else {
-        setMessage('Failed to save edits.');
+        toast.error('Failed to save edits.');
       }
     } catch (error) {
-      setMessage('Server error during edit.');
+      toast.error('Server error during edit.');
     }
   };
-
-  const hasMissingData = verificationResult?.extractedData?.issuer === "Not specified" || verificationResult?.extractedData?.topic === "Not specified";
 
   return (
     <div className="position-relative">
@@ -217,12 +202,6 @@ function HRDashboard({ user }) {
           <span className="text-muted">Review, edit, and verify pending faculty documents.</span>
         </div>
       </div>
-
-      {message && (
-        <div className={`alert ${message.includes('successfully') ? 'alert-success' : 'alert-danger'} py-2 shadow-sm border-0`}>
-          <i className="bi bi-info-circle-fill me-2"></i> {message}
-        </div>
-      )}
 
       {/* --- CONFIRMATION MODAL --- */}
       {confirmDialog.isOpen && (
@@ -259,119 +238,6 @@ function HRDashboard({ user }) {
                 >
                   Confirm {confirmDialog.newStatus === 'approved' ? 'Approval' : 'Rejection'}
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- VERIFICATION MODAL --- */}
-      {isModalOpen && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content border-0 shadow-lg">
-              <div className="modal-header bg-primary text-white">
-                <h5 className="modal-title fw-bold">AI Certificate Verification</h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => setIsModalOpen(false)}></button>
-              </div>
-              <div className="modal-body p-4">
-                {isVerifying ? (
-                  <div className="text-center py-5">
-                    <div className="spinner-border text-primary mb-3" role="status"></div>
-                    <h5 className="text-muted">Analyzing Document & Searching Web...</h5>
-                    <p className="small text-secondary">This may take a few moments.</p>
-                  </div>
-                ) : verificationResult?.error ? (
-                  <div className="alert alert-danger py-3">
-                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                    {verificationResult.error}
-                  </div>
-                ) : verificationResult ? (
-                  <div>
-                    {verifyingCategory !== "Contract" && (
-                      <div className="mb-4">
-                        <div className="d-flex align-items-center">
-                          <h6 className="mb-0 me-3 fw-bold text-secondary">Status:</h6>
-                          {hasMissingData ? (
-                            <span className="badge bg-warning text-dark fs-6 px-3 py-2"><i className="bi bi-exclamation-triangle me-1"></i> Validation Search Failed</span>
-                          ) : verificationResult.isValid ? (
-                            <span className="badge bg-success fs-6 px-3 py-2"><i className="bi bi-shield-check me-1"></i> Validated Event</span>
-                          ) : (
-                            <span className="badge bg-danger fs-6 px-3 py-2"><i className="bi bi-shield-x me-1"></i> Unverified / Suspect</span>
-                          )}
-                        </div>
-                        {!hasMissingData && (
-                          <div className="mt-3 p-3 bg-light rounded border">
-                            <h6><i className="bi bi-search me-2"></i>Web Grounding Verdict</h6>
-                            <p className="small text-muted mb-0">{verificationResult.groundingReasoning}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mb-4">
-                      <h6 className="fw-bold text-secondary mb-2">Layout Anomaly Score</h6>
-                      <div className="d-flex align-items-center">
-                        <div className="progress flex-grow-1 me-3" style={{ height: '10px' }}>
-                          <div
-                            className={`progress-bar ${verificationResult.layoutAnomalyScore > 0.7 ? 'bg-danger' : verificationResult.layoutAnomalyScore > 0.4 ? 'bg-warning' : 'bg-success'}`}
-                            role="progressbar"
-                            style={{ width: `${(verificationResult.layoutAnomalyScore * 100).toFixed(0)}%` }}
-                            aria-valuenow={(verificationResult.layoutAnomalyScore * 100).toFixed(0)}
-                            aria-valuemin="0"
-                            aria-valuemax="100"
-                          ></div>
-                        </div>
-                        <span className="fw-bold">{(verificationResult.layoutAnomalyScore * 100).toFixed(1)}%</span>
-                      </div>
-                      <small className="text-muted">Higher scores indicate a higher likelihood of visual manipulation or forgery.</small>
-                    </div>
-
-                    <div className="mt-3 p-3 bg-light rounded border mb-4">
-                      <h6><i className="bi bi-shield-exclamation me-2"></i>Forensic Layout Analysis</h6>
-                      <p className="small text-muted mb-0">{verificationResult.anomalyReasoning}</p>
-                    </div>
-
-                    <div className="row mb-4">
-                      <div className="col-md-12">
-                        <h6 className="fw-bold text-secondary mb-3">Extracted Data</h6>
-                        <ul className="list-group list-group-flush border rounded">
-                          <li className="list-group-item bg-light"><strong>Issuer:</strong> {verificationResult.extractedData?.issuer}</li>
-                          <li className="list-group-item"><strong>Topic:</strong> {verificationResult.extractedData?.topic}</li>
-                          <li className="list-group-item bg-light"><strong>Date:</strong> {verificationResult.extractedData?.date}</li>
-                        </ul>
-                      </div>
-                    </div>
-
-                    {hasMissingData && (
-                      <div className="alert alert-warning py-3">
-                        <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                        The AI was unable to execute a verification search because core identity parameters (Issuer or Topic) were missing from the extraction. Please review the document manually.
-                      </div>
-                    )}
-
-                    {verifyingCategory !== "Contract" && !hasMissingData && (
-                      <div>
-                        <h6 className="fw-bold text-secondary mb-3">Reference Sources</h6>
-                        {verificationResult.referenceUrls && verificationResult.referenceUrls.length > 0 ? (
-                          <ul className="list-group border rounded">
-                            {verificationResult.referenceUrls.map((url, i) => (
-                              <li key={i} className="list-group-item text-truncate">
-                                <i className="bi bi-globe me-2 text-primary"></i>
-                                <a href={url} target="_blank" rel="noopener noreferrer">{url}</a>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-muted fst-italic">No reference URLs provided.</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-              <div className="modal-footer bg-light">
-                <button type="button" className="btn btn-outline-secondary fw-bold" onClick={() => setIsModalOpen(false)}>Close</button>
               </div>
             </div>
           </div>
@@ -439,7 +305,7 @@ function HRDashboard({ user }) {
 
       ) : (
 
-        /* THE DATA TABLE (Hidden when editing) */
+        /* THE DATA TABLE */
         <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0">
@@ -482,16 +348,22 @@ function HRDashboard({ user }) {
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
+                      <div className="mb-2">
+                        {faculty.verificationStatus === 'verifying' && <span className="badge bg-warning text-dark"><span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Verifying...</span>}
+                        {faculty.verificationStatus === 'verified' && <span className="badge bg-success" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-shield-check me-1"></i> Verified</span>}
+                        {faculty.verificationStatus === 'flagged' && <span className="badge bg-danger" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-shield-x me-1"></i> Flagged</span>}
+                        {faculty.verificationStatus === 'failed' && <span className="badge bg-secondary" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-exclamation-triangle me-1"></i> Failed</span>}
+                      </div>
                       <div className="d-flex justify-content-center gap-2 mb-2">
                         <button onClick={() => startEditing(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100">
                           <i className="bi bi-pencil-square me-1"></i> Edit Data
                         </button>
-                        <button onClick={() => handleVerify(faculty)} className="btn btn-sm btn-outline-info fw-bold px-3 w-100" title="Verify Certificate">
+                        <button onClick={() => handleVerify(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100" title="Verify Certificate" disabled={faculty.verificationStatus === 'verifying'}>
                           <i className="bi bi-search me-1"></i> Verify
                         </button>
                       </div>
                       <div className="d-flex justify-content-center gap-2">
-                        <button onClick={() => openConfirmDialog(faculty._id, 'approved')} className="btn btn-sm btn-success fw-bold px-3 shadow-sm w-50" title="Approve">
+                        <button onClick={() => openConfirmDialog(faculty._id, 'approved')} className="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm w-50" title="Approve">
                           <i className="bi bi-check-lg"></i>
                         </button>
                         <button onClick={() => openConfirmDialog(faculty._id, 'rejected')} className="btn btn-sm btn-outline-danger fw-bold px-3 w-50" title="Reject">
@@ -537,6 +409,75 @@ function HRDashboard({ user }) {
               <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
                 <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">Fallback: Open in New Tab</a>
                 <button type="button" className="btn btn-primary fw-bold" onClick={closeViewer}>Close Viewer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- VERIFICATION REPORT MODAL --- */}
+      {reportDoc && reportDoc.verificationData && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-lg modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header bg-dark text-white">
+                <h5 className="modal-title fw-bold">
+                  AI Verification Report
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setReportDoc(null)}></button>
+              </div>
+              <div className="modal-body p-4">
+                <h6 className="fw-bold text-primary mb-3">AI Extracted Data</h6>
+                <div className="bg-light p-3 rounded mb-4">
+                  <p className="mb-1"><strong>Issuer:</strong> {reportDoc.verificationData.extractedData?.issuer}</p>
+                  <p className="mb-1"><strong>Topic:</strong> {reportDoc.verificationData.extractedData?.topic}</p>
+                  <p className="mb-0"><strong>Date:</strong> {reportDoc.verificationData.extractedData?.date}</p>
+                </div>
+                
+                <h6 className="fw-bold text-danger mb-3">Forgery & Manipulation Analysis</h6>
+                <div className="bg-light p-3 rounded mb-4 border-start border-danger border-4">
+                  <p className="mb-1"><strong>Anomaly Score:</strong> {reportDoc.verificationData.layoutAnomalyScore !== undefined ? (reportDoc.verificationData.layoutAnomalyScore * 100).toFixed(0) + '%' : 'N/A'}</p>
+                  <p className="mb-0 text-muted small">{reportDoc.verificationData.anomalyReasoning}</p>
+                </div>
+
+                <h6 className="fw-bold text-warning mb-3">Document File History</h6>
+                <div className="bg-light p-3 rounded mb-4 border-start border-warning border-4">
+                  {reportDoc.verificationData.metadata?.hasDigitalMetadata ? (
+                    <>
+                      <p className="mb-1"><strong>Creation Date:</strong> {reportDoc.verificationData.metadata.creationDate || 'Unknown'}</p>
+                      <p className="mb-1"><strong>Last Modified:</strong> {reportDoc.verificationData.metadata.modificationDate || 'Unknown'}</p>
+                      <p className="mb-1"><strong>Creator:</strong> {reportDoc.verificationData.metadata.creator}</p>
+                      <p className="mb-0"><strong>Producer:</strong> {reportDoc.verificationData.metadata.producer}</p>
+                    </>
+                  ) : (
+                    <p className="mb-0 text-muted small fst-italic">No digital metadata available for this file format.</p>
+                  )}
+                </div>
+
+                <h6 className="fw-bold text-info mb-3">Grounding & Web Verification</h6>
+                <div className="bg-light p-3 rounded mb-3 border-start border-info border-4">
+                  <p className="mb-1"><strong>Is Valid Event?</strong> {reportDoc.verificationData.isValid === true ? 'Yes' : (reportDoc.verificationData.isValid === false ? 'No' : 'Unsure / Not Analyzed')}</p>
+                  <p className="mb-2 text-muted small">{reportDoc.verificationData.groundingReasoning}</p>
+                  {reportDoc.verificationData.referenceUrls && reportDoc.verificationData.referenceUrls.length > 0 && (
+                    <div>
+                      <strong className="d-block mb-1" style={{fontSize: '0.8rem'}}>Reference Links:</strong>
+                      <ul className="mb-0 ps-3 small text-break">
+                        {reportDoc.verificationData.referenceUrls.map((url, i) => (
+                          <li key={i}><a href={url} target="_blank" rel="noopener noreferrer">{url}</a></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                {reportDoc.verificationData.error && (
+                  <div className="alert alert-danger mt-3">
+                    <strong>Error:</strong> {reportDoc.verificationData.error}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer bg-light">
+                <button type="button" className="btn btn-outline-secondary fw-bold" onClick={() => setReportDoc(null)}>Close</button>
               </div>
             </div>
           </div>

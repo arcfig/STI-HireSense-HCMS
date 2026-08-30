@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { APP_NAME } from '../config';
 
 const FacultyPortal = ({ user }) => {
   const storedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
@@ -13,6 +14,7 @@ const FacultyPortal = ({ user }) => {
     admin: { totalFaculty: 0, pendingApprovals: 0, departmentCounts: {} },
     faculty: { docCount: 0, skillCount: 0, rating: 'N/A' }
   });
+  const [pendingDocs, setPendingDocs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -39,6 +41,7 @@ const FacultyPortal = ({ user }) => {
             // Fetch pending documents ONLY if user is an Admin or Head
             const pendingRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/pending`, { headers });
             const pendingData = pendingRes.ok ? await pendingRes.json() : [];
+            setPendingDocs(pendingData);
 
             // Execute Department Aggregation Map
             const facultyMap = new Map();
@@ -102,18 +105,17 @@ const FacultyPortal = ({ user }) => {
     fetchAnalytics();
   }, [isHeadOrAdmin, name, token]);
 
-  // UI Color Matrix for dynamic department cards
-  const themeColors = ['info', 'secondary', 'dark', 'success', 'primary'];
+
 
   return (
     <div className="container mt-2">
-      <div className="card shadow-sm border-0 mb-4 bg-primary text-white" style={{ background: 'linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%)' }}>
-        <div className="card-body p-4 d-flex justify-content-between align-items-center">
+      <div className="card border-0 mb-4" style={{ backgroundColor: 'var(--brand-primary-bg)', color: 'var(--brand-primary-text)', borderRadius: '12px' }}>
+        <div className="card-body py-4 px-4 d-flex justify-content-between align-items-center">
           <div>
-            <h3 className="fw-bold mb-1">Welcome, {name}</h3>
-            <p className="mb-0 opacity-75">STI Human Capital Management System</p>
+            <h3 className="fw-bold mb-1" style={{ color: 'var(--brand-primary-text)' }}>Welcome, {name}</h3>
+            <p className="mb-0 opacity-75" style={{ color: '#ffffff' }}>{APP_NAME}</p>
           </div>
-          <span className="badge bg-white text-primary text-uppercase px-3 py-2 shadow-sm">
+          <span className="badge bg-white px-3 py-2 shadow-sm" style={{ color: 'var(--brand-primary-bg)' }}>
             {role.replace('_', ' ')}
           </span>
         </div>
@@ -125,141 +127,202 @@ const FacultyPortal = ({ user }) => {
           <p className="mt-3 text-muted">Loading analytics...</p>
         </div>
       ) : (
-        <>
-          <div className="row g-4 mb-5">
-            {isHeadOrAdmin ? (
-              <>
-                <div className="col-md-4">
-                  <div className="card shadow-sm border-0 h-100 border-bottom border-primary border-4">
-                    <div className="card-body p-4">
-                      <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="text-muted fw-bold mb-0 text-uppercase">Verified Faculty</h6>
-                        <div className="bg-primary bg-opacity-10 text-primary rounded px-2 py-1"><i className="bi bi-people-fill"></i></div>
+        <div className="row g-4 mb-5">
+          {/* Column A: Operational Focus (Left Pane) */}
+          <div className="col-lg-8">
+            <h5 className="text-secondary fw-bold mb-3">Quick Actions</h5>
+            <div className="row g-3 mb-4">
+              <div className="col-sm-6">
+                {isHeadOrAdmin ? (
+                  <div className="card h-100 bg-white hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                    <div className="card-body p-3 d-flex align-items-center">
+                      <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
+                        <i className="bi bi-people-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
                       </div>
-                      <h2 className="display-5 fw-bold text-dark mb-0">{metrics.admin.totalFaculty}</h2>
+                      <div>
+                        <h6 className="fw-bold mb-1">Faculty Directory</h6>
+                        <Link to="/directory" className="btn btn-sm fw-bold px-3 mt-1" style={{ backgroundColor: 'var(--brand-primary-bg)', color: '#ffffff', border: 'none' }}>Open Directory</Link>
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <div className="col-md-4">
-                  <div className="card shadow-sm border-0 h-100 border-bottom border-warning border-4">
-                    <div className="card-body p-4">
-                      <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="text-muted fw-bold mb-0 text-uppercase">Pending Approvals</h6>
-                        <div className="bg-warning bg-opacity-10 text-warning rounded px-2 py-1"><i className="bi bi-inbox-fill"></i></div>
+                ) : (
+                  <div className="card h-100 bg-white hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                    <div className="card-body p-3 d-flex align-items-center">
+                      <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
+                        <i className="bi bi-person-badge-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
                       </div>
-                      <h2 className="display-5 fw-bold text-dark mb-0">{metrics.admin.pendingApprovals}</h2>
+                      <div>
+                        <h6 className="fw-bold mb-1">My Portfolio</h6>
+                        <Link to="/portfolio" className="btn btn-sm fw-bold px-3 mt-1" style={{ backgroundColor: 'var(--brand-primary-bg)', color: '#ffffff', border: 'none' }}>View Portfolio</Link>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+              </div>
 
-                {/* Dynamic Department Cards Mapping */}
-                {Object.entries(metrics.admin.departmentCounts).map(([dept, count], index) => {
-                  const colorClass = themeColors[index % themeColors.length];
-                  return (
-                    <div className="col-md-4" key={dept}>
-                      <div className={`card shadow-sm border-0 h-100 border-bottom border-${colorClass} border-4`}>
-                        <div className="card-body p-4">
-                          <div className="d-flex justify-content-between align-items-center mb-3">
-                            <h6 className="text-muted fw-bold mb-0 text-uppercase text-truncate" style={{maxWidth: '80%'}} title={dept}>{dept}</h6>
-                            <div className={`bg-${colorClass} bg-opacity-10 text-${colorClass} rounded px-2 py-1`}>
-                              <i className="bi bi-diagram-3-fill"></i>
-                            </div>
-                          </div>
-                          <h2 className="display-5 fw-bold text-dark mb-0">{count}</h2>
-                        </div>
-                      </div>
+              <div className="col-sm-6">
+                <div className="card h-100 bg-white hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                  <div className="card-body p-3 d-flex align-items-center">
+                    <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
+                      <i className="bi bi-cloud-arrow-up-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
                     </div>
-                  );
-                })}
-              </>
-            ) : (
+                    <div>
+                      <h6 className="fw-bold mb-1">Submit Credentials</h6>
+                      <Link to="/upload" className="btn btn-sm fw-bold px-3 mt-1" style={{ backgroundColor: 'var(--brand-primary-bg)', color: '#ffffff', border: 'none' }}>Upload Now</Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {isHeadOrAdmin && pendingDocs.length > 0 && (
               <>
-                <div className="col-md-4">
-                  <div className="card shadow-sm border-0 h-100 border-bottom border-primary border-4">
-                    <div className="card-body p-4">
-                      <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="text-muted fw-bold mb-0 text-uppercase">Approved Documents</h6>
-                        <div className="bg-primary bg-opacity-10 text-primary rounded px-2 py-1"><i className="bi bi-file-earmark-check-fill"></i></div>
-                      </div>
-                      <h2 className="display-5 fw-bold text-dark mb-0">{metrics.faculty.docCount}</h2>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div className="card shadow-sm border-0 h-100 border-bottom border-success border-4">
-                    <div className="card-body p-4">
-                      <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="text-muted fw-bold mb-0 text-uppercase">Verified Skills</h6>
-                        <div className="bg-success bg-opacity-10 text-success rounded px-2 py-1"><i className="bi bi-patch-check-fill"></i></div>
-                      </div>
-                      <h2 className="display-5 fw-bold text-dark mb-0">{metrics.faculty.skillCount}</h2>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div className="card shadow-sm border-0 h-100 border-bottom border-info border-4">
-                    <div className="card-body p-4">
-                      <div className="d-flex justify-content-between align-items-center mb-3">
-                        <h6 className="text-muted fw-bold mb-0 text-uppercase">Latest Rating</h6>
-                        <div className="bg-info bg-opacity-10 text-info rounded px-2 py-1"><i className="bi bi-star-fill"></i></div>
-                      </div>
-                      <h2 className="display-5 fw-bold text-dark mb-0">{metrics.faculty.rating}</h2>
-                    </div>
+                <h5 className="text-secondary fw-bold mb-3 mt-5">Action Center</h5>
+                <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
+                  <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Faculty Name</th>
+                          <th>Document Title / Credential Type</th>
+                          <th>Submission Date</th>
+                          <th>Department</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingDocs.slice(0, 5).map(doc => (
+                          <tr key={doc._id}>
+                            <td>{doc.firstName} {doc.lastName}</td>
+                            <td>
+                              <span className="fw-semibold">{doc.documentTitle}</span>
+                              <br/>
+                              <small className="text-muted">{doc.documentType}</small>
+                            </td>
+                            <td>{new Date(doc.createdAt).toLocaleDateString()}</td>
+                            <td>{doc.department || 'Unassigned'}</td>
+                            <td>
+                              <Link to="/hr-dashboard" className="btn btn-sm btn-outline-primary fw-bold">Review</Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </>
             )}
           </div>
 
-          <h5 className="text-secondary fw-bold mb-3">Quick Actions</h5>
-          <div className="row g-4">
-            <div className="col-md-6">
+          {/* Column B: Analytical Summary (Right Pane) */}
+          <div className="col-lg-4">
+            <h5 className="text-secondary fw-bold mb-3">System Health</h5>
+            <div className="row g-3">
               {isHeadOrAdmin ? (
-                <div className="card h-100 border-0 bg-white shadow-sm hover-lift transition-all">
-                  <div className="card-body p-4 d-flex align-items-center">
-                    <div className="bg-primary bg-opacity-10 p-3 rounded-circle me-4">
-                      <i className="bi bi-people-fill text-primary fs-3"></i>
-                    </div>
-                    <div>
-                      <h5 className="fw-bold mb-1">Faculty Directory</h5>
-                      <p className="small text-muted mb-3">Browse the aggregated institutional competency database.</p>
-                      <Link to="/directory" className="btn btn-sm btn-outline-primary fw-bold px-4">Open Directory</Link>
+                <>
+                  <div className="col-6">
+                    <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                      <div className="card-body p-2">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <h6 className="text-muted fw-bold mb-0 text-uppercase" style={{ fontSize: '0.75rem' }}>Verified Faculty</h6>
+                          <div style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }} className="px-2 py-1">
+                            <i className="bi bi-people-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
+                          </div>
+                        </div>
+                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.admin.totalFaculty}</h2>
+                      </div>
                     </div>
                   </div>
-                </div>
+                  
+                  <div className="col-6">
+                    <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                      <div className="card-body p-2">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <h6 className="text-muted fw-bold mb-0 text-uppercase" style={{ fontSize: '0.75rem' }}>Pending Approvals</h6>
+                          <div style={{ backgroundColor: 'rgba(255, 105, 0, 0.1)', borderRadius: '8px' }} className="px-2 py-1">
+                            <i className="bi bi-inbox-fill" style={{ color: 'var(--semantic-warning)' }}></i>
+                          </div>
+                        </div>
+                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.admin.pendingApprovals}</h2>
+                      </div>
+                    </div>
+                  </div>
+
+                  {Object.entries(metrics.admin.departmentCounts).map(([dept, count]) => {
+                    let iconColor = 'var(--brand-primary-bg)';
+                    let bgColor = 'rgba(8, 97, 47, 0.1)';
+                    
+                    if (dept === 'General Education') {
+                      iconColor = 'var(--semantic-info)';
+                      bgColor = 'rgba(6, 147, 227, 0.1)';
+                    } else if (dept === 'Information Technology') {
+                      iconColor = 'var(--border-neutral)';
+                      bgColor = '#f8fafc';
+                    }
+
+                    return (
+                      <div className="col-6" key={dept}>
+                        <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                          <div className="card-body p-2">
+                            <div className="d-flex justify-content-between align-items-center mb-2">
+                              <h6 className="text-muted fw-bold mb-0 text-uppercase text-truncate" style={{maxWidth: '80%', fontSize: '0.75rem'}} title={dept}>{dept}</h6>
+                              <div style={{ backgroundColor: bgColor, borderRadius: '8px' }} className="px-2 py-1">
+                                <i className="bi bi-diagram-3-fill" style={{ color: iconColor }}></i>
+                              </div>
+                            </div>
+                            <h2 className="fs-4 fw-semibold text-dark mb-0">{count}</h2>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               ) : (
-                <div className="card h-100 border-0 bg-white shadow-sm hover-lift transition-all">
-                  <div className="card-body p-4 d-flex align-items-center">
-                    <div className="bg-primary bg-opacity-10 p-3 rounded-circle me-4">
-                      <i className="bi bi-person-badge-fill text-primary fs-3"></i>
-                    </div>
-                    <div>
-                      <h5 className="fw-bold mb-1">My Portfolio</h5>
-                      <p className="small text-muted mb-3">Review your approved credentials and verified skills.</p>
-                      <Link to="/portfolio" className="btn btn-sm btn-outline-primary fw-bold px-4">View Portfolio</Link>
+                <>
+                  <div className="col-6">
+                    <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                      <div className="card-body p-2">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <h6 className="text-muted fw-bold mb-0 text-uppercase" style={{ fontSize: '0.75rem' }}>Approved Docs</h6>
+                          <div style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }} className="px-2 py-1">
+                            <i className="bi bi-file-earmark-check-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
+                          </div>
+                        </div>
+                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.faculty.docCount}</h2>
+                      </div>
                     </div>
                   </div>
-                </div>
+                  <div className="col-6">
+                    <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                      <div className="card-body p-2">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <h6 className="text-muted fw-bold mb-0 text-uppercase" style={{ fontSize: '0.75rem' }}>Verified Skills</h6>
+                          <div style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }} className="px-2 py-1">
+                            <i className="bi bi-patch-check-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
+                          </div>
+                        </div>
+                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.faculty.skillCount}</h2>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-6">
+                    <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                      <div className="card-body p-2">
+                        <div className="d-flex justify-content-between align-items-center mb-2">
+                          <h6 className="text-muted fw-bold mb-0 text-uppercase" style={{ fontSize: '0.75rem' }}>Latest Rating</h6>
+                          <div style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }} className="px-2 py-1">
+                            <i className="bi bi-star-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
+                          </div>
+                        </div>
+                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.faculty.rating}</h2>
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-
-            <div className="col-md-6">
-              <div className="card h-100 border-0 bg-white shadow-sm hover-lift transition-all">
-                <div className="card-body p-4 d-flex align-items-center">
-                  <div className="bg-success bg-opacity-10 p-3 rounded-circle me-4">
-                    <i className="bi bi-cloud-arrow-up-fill text-success fs-3"></i>
-                  </div>
-                  <div>
-                    <h5 className="fw-bold mb-1">Submit Credentials</h5>
-                    <p className="small text-muted mb-3">Upload new documents for AI extraction and HR review.</p>
-                    <Link to="/upload" className="btn btn-sm btn-outline-success fw-bold px-4">Upload Now</Link>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

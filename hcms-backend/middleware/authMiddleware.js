@@ -4,7 +4,11 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'STI_Super_Sec
 
 const verifyToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; 
+  let token = authHeader && authHeader.split(' ')[1];
+
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
 
   if (!token) {
     return res.status(401).json({ error: "Access denied. No authentication token provided." });
@@ -12,8 +16,8 @@ const verifyToken = async (req, res, next) => {
 
   try {
     const { payload } = await jwtVerify(token, secret);
-    req.user = payload; 
-    next(); 
+    req.user = payload;
+    next();
   } catch (error) {
     // Expose the native error to the backend logs
     console.error("JWT Verification Failure:", error.code, error.message);
