@@ -208,10 +208,10 @@ const handleSubmit = async (e) => {
 
   return (
     <div className="container-fluid p-0">
-      <div className="row g-0 min-vh-100">
+      <div className="row g-0 vh-100">
         
         {/* Left Column - Media Pane */}
-        <div className="col-lg-7 d-none d-lg-block position-relative">
+        <div className="col-lg-7 d-none d-lg-block position-relative h-100">
           <div 
             className="w-100 h-100"
             style={{
@@ -232,7 +232,7 @@ const handleSubmit = async (e) => {
         </div>
 
         {/* Right Column - Interaction Pane */}
-        <div className="col-lg-5 col-12 d-flex flex-column position-relative" style={{ backgroundColor: '#f8fafc' }}>
+        <div className="col-lg-5 col-12 d-flex flex-column position-relative overflow-auto h-100" style={{ backgroundColor: '#f8fafc' }}>
           
           <div className="flex-grow-1 d-flex align-items-center justify-content-center p-3 p-md-4">
             {/* Dynamic Card Width: Wider for Register, Compact for Login */}
