@@ -5,7 +5,7 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 const FacultyDirectory = () => {
   const [directoryData, setDirectoryData] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState('');
 
@@ -56,7 +56,7 @@ const FacultyDirectory = () => {
 
             const groupedProfiles = data.reduce((acc, doc) => {
               const normalizedKey = normalizeNameKey(doc.firstName, doc.lastName);
-              
+
               if (!acc[normalizedKey]) {
                 acc[normalizedKey] = {
                   fullName: `${doc.firstName} ${doc.lastName}`,
@@ -81,9 +81,9 @@ const FacultyDirectory = () => {
                   acc[normalizedKey].department = doc.department;
                 }
               }
-              
+
               acc[normalizedKey].documentCount += 1;
-              
+
               if (doc.tags && Array.isArray(doc.tags)) {
                 doc.tags.forEach(tag => acc[normalizedKey].tags.add(tag));
               }
@@ -91,7 +91,7 @@ const FacultyDirectory = () => {
               if (doc.eligibleSubjects && Array.isArray(doc.eligibleSubjects)) {
                 doc.eligibleSubjects.forEach(sub => acc[normalizedKey].eligibleSubjects.add(sub));
               }
-              
+
               acc[normalizedKey].documents.push(doc);
               return acc;
             }, {});
@@ -149,8 +149,8 @@ const FacultyDirectory = () => {
   };
 
   const filteredData = directoryData.filter(faculty => {
-    const matchesSearch = faculty.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          faculty.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = faculty.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      faculty.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesDept = filterDept === '' || faculty.department === filterDept;
     return matchesSearch && matchesDept;
   });
@@ -193,11 +193,22 @@ const FacultyDirectory = () => {
     };
   }
 
-  if (loading) return <div className="container mt-5 text-center"><div className="spinner-border text-primary" role="status"></div><h5 className="mt-3">Loading Directory...</h5></div>;
+  if (loading) return (
+    <div className="container mt-5">
+      <div className="skeleton-loader border-0 mb-4" style={{ height: '80px', width: '100%', borderRadius: '12px' }}></div>
+      <div className="row g-4">
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className="col-12 col-md-6 col-lg-4">
+            <div className="skeleton-loader border-0" style={{ height: '180px', width: '100%', borderRadius: '12px' }}></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="d-flex flex-column h-100">
-      
+
       <div className="flex-shrink-0">
         <div className="d-flex justify-content-between align-items-end mb-3">
           <div>
@@ -212,19 +223,19 @@ const FacultyDirectory = () => {
               <div className="col-md-8">
                 <div className="input-group">
                   <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
-                  <input 
-                    type="text" 
-                    className="form-control border-start-0 ps-0" 
-                    placeholder="Search by faculty name or specific skill..." 
+                  <input
+                    type="text"
+                    className="form-control border-start-0 ps-0"
+                    placeholder="Search by faculty name or specific skill..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
               </div>
               <div className="col-md-4">
-                <select 
-                  className="form-select" 
-                  value={filterDept} 
+                <select
+                  className="form-select"
+                  value={filterDept}
                   onChange={(e) => setFilterDept(e.target.value)}
                 >
                   <option value="">All Departments</option>
@@ -237,7 +248,7 @@ const FacultyDirectory = () => {
           </div>
         </div>
       </div>
-      
+
       <div className="flex-grow-1 overflow-y-auto overflow-x-hidden pe-2 px-1" style={{ minHeight: 0 }}>
         {directoryData.length === 0 ? (
           <div className="text-center py-5">
@@ -254,10 +265,10 @@ const FacultyDirectory = () => {
                 <div className="col-md-6 col-lg-4" key={index}>
                   <div className="card shadow-sm h-100 border-0 d-flex flex-column hover-lift">
                     <div className="card-body flex-grow-1">
-                      
+
                       <div className="d-flex align-items-center mb-3">
-                        <div 
-                          className="rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm" 
+                        <div
+                          className="rounded-circle d-flex align-items-center justify-content-center me-3 shadow-sm"
                           style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}
                         >
                           {getInitials(faculty.fullName)}
@@ -267,7 +278,7 @@ const FacultyDirectory = () => {
                           <p className="text-muted small mb-0">{faculty.department}</p>
                         </div>
                       </div>
-                      
+
                       <div className="mb-3 border-bottom pb-3">
                         <span className="badge rounded-pill px-3 py-2" style={{ backgroundColor: 'var(--bg-neutral-tint)', color: 'var(--text-tint)', border: '1px solid var(--border-tint)' }}>
                           <i className="bi bi-patch-check-fill me-1"></i> {faculty.documentCount} Verified Credential{faculty.documentCount !== 1 ? 's' : ''}
@@ -279,10 +290,10 @@ const FacultyDirectory = () => {
                         {visibleTags.length > 0 ? (
                           <>
                             {visibleTags.map((tag, i) => (
-                              <span key={i} className="badge bg-light text-secondary border px-2 py-1" style={{fontSize: '0.75rem'}}>{tag}</span>
+                              <span key={i} className="badge bg-light text-secondary border px-2 py-1" style={{ fontSize: '0.75rem' }}>{tag}</span>
                             ))}
                             {extraTagsCount > 0 && (
-                              <span className="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1" style={{fontSize: '0.75rem'}}>
+                              <span className="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1" style={{ fontSize: '0.75rem' }}>
                                 +{extraTagsCount} more
                               </span>
                             )}
@@ -292,10 +303,10 @@ const FacultyDirectory = () => {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
-                      <button 
-                        className="btn btn-neutral-outline w-100 fw-bold" 
+                      <button
+                        className="btn btn-neutral-outline w-100 fw-bold"
                         onClick={() => handleOpenProfile(faculty)}
                       >
                         View Full Profile
@@ -305,8 +316,13 @@ const FacultyDirectory = () => {
                 </div>
               );
             }) : (
-              <div className="col-12 text-center py-5">
-                <h5 className="text-muted">No faculty members match your search criteria.</h5>
+              <div className="col-12 py-5 mt-4 d-flex flex-column align-items-center justify-content-center text-center hover-lift transition-all">
+                <div className="p-4 rounded-circle mb-3 shadow-sm" style={{ backgroundColor: '#ffffff' }}>
+                  <i className="bi bi-search text-muted opacity-50" style={{ fontSize: '3rem' }}></i>
+                </div>
+                <h5 className="text-muted fw-bold">No Match Found</h5>
+                <p className="text-muted small mb-3">We couldn't find any faculty members matching your filters.</p>
+                <button className="btn btn-outline-secondary" onClick={() => { setSearchTerm(''); setFilterDept(''); }}>Clear Filters</button>
               </div>
             )}
           </div>
@@ -317,11 +333,11 @@ const FacultyDirectory = () => {
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', overflowY: 'auto', zIndex: 1055, position: 'fixed', inset: 0 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content bg-light border-0 shadow-lg my-4">
-              
+
               <div className="modal-header px-4 py-3 bg-white sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                 <div className="d-flex align-items-center">
                   <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}>
-                      {getInitials(selectedFaculty.fullName)}
+                    {getInitials(selectedFaculty.fullName)}
                   </div>
                   <div>
                     <h4 className="modal-title fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{selectedFaculty.fullName}</h4>
@@ -339,7 +355,7 @@ const FacultyDirectory = () => {
                         <div className="d-flex justify-content-between align-items-center mb-2">
                           <h6 className="text-muted fw-bold mb-0 text-start">PERFORMANCE SCORE</h6>
                           {evaluations.length > 0 && (
-                            <select 
+                            <select
                               className="form-select form-select-sm w-auto shadow-sm"
                               value={selectedEvalTerm}
                               onChange={(e) => setSelectedEvalTerm(e.target.value)}
@@ -393,7 +409,7 @@ const FacultyDirectory = () => {
                           )}
                         </div>
                         {selectedFaculty.tags.length > VISIBLE_SKILLS_LIMIT && (
-                          <button 
+                          <button
                             className="btn btn-sm btn-link p-0 fw-bold hover-underline"
                             onClick={() => setShowAllSkills(!showAllSkills)}
                             style={{ color: 'var(--text-muted)', textDecoration: 'none' }}
@@ -415,7 +431,7 @@ const FacultyDirectory = () => {
                         <i className="bi bi-card-checklist text-success me-2"></i>Approved Teaching Eligibilities
                       </h5>
                       {selectedFaculty.eligibleSubjects?.length > VISIBLE_SUBJECTS_LIMIT && (
-                        <button 
+                        <button
                           className="btn btn-sm btn-outline-secondary"
                           onClick={() => setShowAllSubjects(!showAllSubjects)}
                         >
@@ -423,7 +439,7 @@ const FacultyDirectory = () => {
                         </button>
                       )}
                     </div>
-                    
+
                     <div className="d-flex flex-wrap gap-2">
                       {selectedFaculty.eligibleSubjects.length > 0 ? (
                         (showAllSubjects ? selectedFaculty.eligibleSubjects : selectedFaculty.eligibleSubjects.slice(0, VISIBLE_SUBJECTS_LIMIT)).map((subject, index) => (
@@ -442,14 +458,14 @@ const FacultyDirectory = () => {
                 </div>
 
                 <h5 className="text-secondary mb-3 mt-5"><i className="bi bi-folder2-open me-2"></i>Document Portfolio</h5>
-                
+
                 <ul className="nav nav-tabs mb-4">
                   {Object.keys(categories).map(tabName => (
                     <li className="nav-item" key={tabName}>
-                      <button 
+                      <button
                         className={`nav-link ${activeTab === tabName ? 'shadow-sm' : 'border-0'}`}
                         onClick={() => setActiveTab(tabName)}
-                        style={{ 
+                        style={{
                           backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
                           color: activeTab === tabName ? 'var(--text-tint)' : 'var(--text-muted)',
                           border: 'none',
@@ -474,13 +490,13 @@ const FacultyDirectory = () => {
                           <div className="card-body d-flex flex-column">
                             <h6 className="fw-bold mb-1">{doc.documentTitle}</h6>
                             <span className="badge bg-light text-secondary border mb-3 align-self-start">{doc.documentType}</span>
-                            
+
                             {doc.issuingInstitution && <p className="small mb-1"><strong>Issuer:</strong> {doc.issuingInstitution}</p>}
                             {doc.academicYear && <p className="small mb-1"><strong>Period:</strong> {doc.academicYear} {doc.term}</p>}
                             {doc.evaluationRating && <p className="small mb-1"><strong>Overall Rating:</strong> {doc.evaluationRating}</p>}
                             {doc.intent && <p className="small mb-1"><strong>Intent to Continue:</strong> {doc.intent}</p>}
                             {doc.offenseType && <p className="small mb-1 text-danger"><strong>Reason:</strong> {doc.offenseType}</p>}
-                            
+
                             <p className={`small ${doc.expirationDate ? 'mb-1' : 'mb-3'}`}>
                               <strong>Issued/Added:</strong> {doc.dateReceived ? doc.dateReceived.split('T')[0] : new Date(doc.createdAt).toLocaleDateString()}
                             </p>
@@ -496,7 +512,7 @@ const FacultyDirectory = () => {
                                 <p className="small fw-bold text-muted mb-1 mt-auto">Extracted Data Points</p>
                                 <div className="d-flex flex-wrap gap-1 mb-3">
                                   {doc.tags.map((tag, i) => (
-                                    <span key={i} className="badge bg-light text-secondary border" style={{fontSize: '0.75rem'}}>{tag}</span>
+                                    <span key={i} className="badge bg-light text-secondary border" style={{ fontSize: '0.75rem' }}>{tag}</span>
                                   ))}
                                 </div>
                               </>
@@ -525,9 +541,9 @@ const FacultyDirectory = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-
       {previewDoc.isOpen && (
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
           <div className="modal-dialog modal-xl modal-dialog-centered">
@@ -554,8 +570,7 @@ const FacultyDirectory = () => {
               </div>
             </div>
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   );

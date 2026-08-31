@@ -20,7 +20,27 @@
 body {
   background-color: #f8fafc; /* The light gray background from the mockup */
   margin: 0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-neutral-light);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 /* Sidebar Styling */
@@ -110,8 +130,18 @@ button[type="submit"]:hover, button[type="submit"]:focus, button[type="submit"]:
 
 /* 7. Typography and Links */
 /* Links default to bootstrap blue per user request */
-h1, h2, h3, h4, h5, h6, .card-title {
+h1, h2, h3, h4, h5, h6, .card-title, .modal-title {
   color: var(--text-main);
+  font-weight: 600 !important;
+}
+
+/* Secondary Labels Standardization */
+.label-secondary, 
+h6.text-muted,
+.card-body h6.text-muted {
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* 8. Tab Navigation Correction */
@@ -158,4 +188,30 @@ h1, h2, h3, h4, h5, h6, .card-title {
   background-color: var(--bg-neutral-light) !important;
   color: var(--text-main) !important;
   border: 1px solid var(--border-subtle) !important;
+}
+
+/* 12. Micro-interactions and Animation */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025) !important;
+}
+
+/* 13. Skeleton Loaders */
+.skeleton-loader {
+  background: linear-gradient(90deg, var(--bg-neutral-light) 25%, var(--border-subtle) 50%, var(--bg-neutral-light) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite ease-in-out;
+  border-radius: 4px;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
