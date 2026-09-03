@@ -157,12 +157,14 @@ function HRDashboard({ user }) {
   const startEditing = (faculty) => {
     setEditingDoc(faculty._id);
     setEditFormData({
+      id: faculty._id,
       firstName: faculty.firstName,
       lastName: faculty.lastName,
       department: faculty.department,
       documentTitle: faculty.documentTitle || '',
       documentType: faculty.documentType || 'Certificate',
-      tags: faculty.tags ? faculty.tags.join(', ') : ''
+      tags: faculty.tags ? faculty.tags.join(', ') : '',
+      eligibleSubjects: faculty.eligibleSubjects ? faculty.eligibleSubjects.join(', ') : ''
     });
   };
 
@@ -173,13 +175,21 @@ function HRDashboard({ user }) {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/edit/${editingDoc}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/edit/${editFormData.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(editFormData)
+        body: JSON.stringify({
+          firstName: editFormData.firstName,
+          lastName: editFormData.lastName,
+          department: editFormData.department,
+          documentTitle: editFormData.documentTitle,
+          documentType: editFormData.documentType,
+          tags: editFormData.tags,
+          eligibleSubjects: editFormData.eligibleSubjects
+        })
       });
 
       if (response.ok) {
@@ -297,6 +307,12 @@ function HRDashboard({ user }) {
               <label className="form-label fw-semibold text-secondary">AI Skill Tags (Comma Separated)</label>
               <input type="text" className="form-control bg-light" name="tags" value={editFormData.tags} onChange={handleEditChange} />
               <small className="text-muted">Separate multiple skills with a comma (e.g., Java, Python, React)</small>
+            </div>
+
+            <div className="mb-4">
+              <label className="form-label fw-semibold text-secondary">Teaching Eligibilities (Course Codes)</label>
+              <input type="text" className="form-control bg-light border-success" name="eligibleSubjects" value={editFormData.eligibleSubjects || ''} onChange={handleEditChange} placeholder="e.g., IT1808, CITE1004" />
+              <small className="text-muted">Enter course codes separated by commas to grant the faculty member eligibility to teach them.</small>
             </div>
 
             <button type="submit" className="btn btn-primary fw-bold px-5 py-2 shadow-sm">Save Changes</button>
@@ -421,7 +437,7 @@ function HRDashboard({ user }) {
           <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content border-0 shadow-lg">
               <div className="modal-header bg-dark text-white">
-                <h5 className="modal-title fw-bold">
+                <h5 className="modal-title fw-bold text-white">
                   AI Verification Report
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setReportDoc(null)}></button>

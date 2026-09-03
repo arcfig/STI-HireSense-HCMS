@@ -9,8 +9,8 @@ const { verifyToken, requireRole } = require('../middleware/authMiddleware');
 // SECTION 1: SPECIFIC ROUTES (Must go first)
 // ==========================================
 
-// 1. Fetch Active Users (Secured: Admin only)
-router.get('/active', verifyToken, requireRole(['admin']), async (req, res) => {
+// 1. Fetch Active Users (Secured: Admin and Heads)
+router.get('/active', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const activeUsers = await User.find({ isArchived: { $ne: true } }).select('-passwordHash').sort({ createdAt: -1 });
     res.status(200).json(activeUsers);

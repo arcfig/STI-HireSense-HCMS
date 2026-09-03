@@ -179,7 +179,7 @@ const MyPortfolio = ({ user }) => {
           <div className="card shadow-sm h-100 border-0">
             <div className="card-body text-center d-flex flex-column justify-content-center">
               
-              <div className="d-flex justify-content-between align-items-center mb-2">
+              <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                 <h6 className="text-muted fw-bold mb-0 text-start">PERFORMANCE SCORE</h6>
                 {evaluations.length > 0 && (
                   <select 
@@ -205,7 +205,7 @@ const MyPortfolio = ({ user }) => {
                   
                   <div style={{ width: '100%', height: 220 }}>
                     <ResponsiveContainer>
-                      <RadarChart cx="50%" cy="50%" outerRadius="70%" data={dynamicRadarData}>
+                      <RadarChart cx="50%" cy="50%" outerRadius="60%" data={dynamicRadarData}>
                         <PolarGrid stroke="#e0e0e0" />
                         <PolarAngleAxis dataKey="metric" tick={{ fill: '#6c757d', fontSize: 10, fontWeight: 'bold' }} />
                         <PolarRadiusAxis angle={30} domain={[0, 5]} tick={false} axisLine={false} />

@@ -8,6 +8,7 @@ const FacultyDirectory = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDept, setFilterDept] = useState('');
+  const [filterVerification, setFilterVerification] = useState('All Faculty');
 
   const [selectedFaculty, setSelectedFaculty] = useState(null);
   const [previewDoc, setPreviewDoc] = useState({ isOpen: false, url: '', title: '' });
@@ -35,30 +36,53 @@ const FacultyDirectory = () => {
 
       try {
         // 3. UPDATED: Fetch with Authorization Header
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/approved`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        const [usersResponse, docsResponse] = await Promise.all([
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/active`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/approved`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          })
+        ]);
 
-        if (response.ok) {
-          const data = await response.json();
+        if (usersResponse.ok && docsResponse.ok) {
+          const usersData = await usersResponse.json();
+          const docsData = await docsResponse.json();
 
-          if (data && data.length > 0) {
-            const normalizeNameKey = (fName, lName) => {
-              const firstWord = fName.trim().split(/\s+/)[0].toLowerCase();
-              const lastWords = lName.trim().split(/\s+/);
-              const lastWord = lastWords[lastWords.length - 1].toLowerCase();
-              return `${firstWord}_${lastWord}`;
-            };
+          const normalizeNameKey = (fName, lName) => {
+            const firstWord = fName.trim().split(/\s+/)[0].toLowerCase();
+            const lastWords = lName.trim().split(/\s+/);
+            const lastWord = lastWords[lastWords.length - 1].toLowerCase();
+            return `${firstWord}_${lastWord}`;
+          };
 
-            const groupedProfiles = data.reduce((acc, doc) => {
+          const groupedProfiles = {};
+
+          const activeFaculty = usersData.filter(u => u.role === 'faculty');
+          activeFaculty.forEach(user => {
+             let fName = user.name.split(' ')[0] || '';
+             let lName = user.name.split(' ').slice(1).join(' ') || '';
+             if (!lName) lName = fName;
+             
+             const normalizedKey = normalizeNameKey(fName, lName);
+             groupedProfiles[normalizedKey] = {
+               fullName: user.name,
+               firstName: fName,
+               lastName: lName,
+               department: user.department || 'Unassigned',
+               documentCount: 0,
+               tags: new Set(),
+               eligibleSubjects: new Set(),
+               documents: []
+             };
+          });
+
+          if (docsData && docsData.length > 0) {
+            docsData.forEach(doc => {
               const normalizedKey = normalizeNameKey(doc.firstName, doc.lastName);
-
-              if (!acc[normalizedKey]) {
-                acc[normalizedKey] = {
+              
+              if (!groupedProfiles[normalizedKey]) {
+                groupedProfiles[normalizedKey] = {
                   fullName: `${doc.firstName} ${doc.lastName}`,
                   firstName: doc.firstName,
                   lastName: doc.lastName,
@@ -69,41 +93,40 @@ const FacultyDirectory = () => {
                   documents: []
                 };
               } else {
-                const existingLength = acc[normalizedKey].fullName.replace(/\s+/g, '').length;
+                const existingLength = groupedProfiles[normalizedKey].fullName.replace(/\s+/g, '').length;
                 const newLength = `${doc.firstName} ${doc.lastName}`.replace(/\s+/g, '').length;
                 if (newLength > existingLength) {
-                  acc[normalizedKey].fullName = `${doc.firstName} ${doc.lastName}`;
+                  groupedProfiles[normalizedKey].fullName = `${doc.firstName} ${doc.lastName}`;
                 }
 
-                const existingDeptLen = acc[normalizedKey].department.length;
+                const existingDeptLen = groupedProfiles[normalizedKey].department.length;
                 const newDeptLen = (doc.department || '').length;
                 if (newDeptLen > existingDeptLen) {
-                  acc[normalizedKey].department = doc.department;
+                  groupedProfiles[normalizedKey].department = doc.department;
                 }
               }
 
-              acc[normalizedKey].documentCount += 1;
+              groupedProfiles[normalizedKey].documentCount += 1;
 
               if (doc.tags && Array.isArray(doc.tags)) {
-                doc.tags.forEach(tag => acc[normalizedKey].tags.add(tag));
+                doc.tags.forEach(tag => groupedProfiles[normalizedKey].tags.add(tag));
               }
 
               if (doc.eligibleSubjects && Array.isArray(doc.eligibleSubjects)) {
-                doc.eligibleSubjects.forEach(sub => acc[normalizedKey].eligibleSubjects.add(sub));
+                doc.eligibleSubjects.forEach(sub => groupedProfiles[normalizedKey].eligibleSubjects.add(sub));
               }
 
-              acc[normalizedKey].documents.push(doc);
-              return acc;
-            }, {});
-
-            const formattedArray = Object.values(groupedProfiles).map(profile => ({
-              ...profile,
-              tags: Array.from(profile.tags).filter(Boolean),
-              eligibleSubjects: Array.from(profile.eligibleSubjects).filter(Boolean)
-            }));
-
-            setDirectoryData(formattedArray);
+              groupedProfiles[normalizedKey].documents.push(doc);
+            });
           }
+
+          const formattedArray = Object.values(groupedProfiles).map(profile => ({
+            ...profile,
+            tags: Array.from(profile.tags).filter(Boolean),
+            eligibleSubjects: Array.from(profile.eligibleSubjects).filter(Boolean)
+          }));
+
+          setDirectoryData(formattedArray);
         } else {
           console.error("Backend refused the request. Token might be expired.");
         }
@@ -150,9 +173,17 @@ const FacultyDirectory = () => {
 
   const filteredData = directoryData.filter(faculty => {
     const matchesSearch = faculty.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      faculty.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      faculty.tags.some(tag => String(tag).toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesDept = filterDept === '' || faculty.department === filterDept;
-    return matchesSearch && matchesDept;
+    
+    let matchesVerification = true;
+    if (filterVerification === 'With Verified Credentials') {
+      matchesVerification = faculty.documentCount > 0;
+    } else if (filterVerification === 'No Credentials') {
+      matchesVerification = faculty.documentCount === 0;
+    }
+    
+    return matchesSearch && matchesDept && matchesVerification;
   });
 
   const departments = [...new Set(directoryData.map(item => item.department))].filter(Boolean);
@@ -220,7 +251,7 @@ const FacultyDirectory = () => {
         <div className="card shadow-sm border-0 mb-3 bg-white">
           <div className="card-body p-3">
             <div className="row g-2">
-              <div className="col-md-8">
+              <div className="col-md-5">
                 <div className="input-group">
                   <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
                   <input
@@ -242,6 +273,17 @@ const FacultyDirectory = () => {
                   {departments.map((dept, index) => (
                     <option key={index} value={dept}>{dept}</option>
                   ))}
+                </select>
+              </div>
+              <div className="col-md-3">
+                <select
+                  className="form-select"
+                  value={filterVerification}
+                  onChange={(e) => setFilterVerification(e.target.value)}
+                >
+                  <option value="All Faculty">All Faculty</option>
+                  <option value="With Verified Credentials">With Verified Credentials</option>
+                  <option value="No Credentials">No Credentials</option>
                 </select>
               </div>
             </div>
@@ -352,7 +394,7 @@ const FacultyDirectory = () => {
                   <div className="col-md-5">
                     <div className="card shadow-sm h-100 border-0">
                       <div className="card-body text-center d-flex flex-column justify-content-center">
-                        <div className="d-flex justify-content-between align-items-center mb-2">
+                        <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                           <h6 className="text-muted fw-bold mb-0 text-start">PERFORMANCE SCORE</h6>
                           {evaluations.length > 0 && (
                             <select
@@ -376,7 +418,7 @@ const FacultyDirectory = () => {
                             </div>
                             <div style={{ width: '100%', height: 220 }}>
                               <ResponsiveContainer>
-                                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={dynamicRadarData}>
+                                <RadarChart cx="50%" cy="50%" outerRadius="60%" data={dynamicRadarData}>
                                   <PolarGrid stroke="#e0e0e0" />
                                   <PolarAngleAxis dataKey="metric" tick={{ fill: '#6c757d', fontSize: 10, fontWeight: 'bold' }} />
                                   <PolarRadiusAxis angle={30} domain={[0, 5]} tick={false} axisLine={false} />

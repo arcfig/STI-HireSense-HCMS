@@ -23,7 +23,10 @@ function MyProfile({ user }) {
       // 1. Get options from server
       const optRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/register/generate-options`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
         body: JSON.stringify({ username: user.username })
       });
       const options = await optRes.json();
@@ -46,7 +49,10 @@ function MyProfile({ user }) {
       // 3. Verify with server
       const verifyRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/register/verify`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
         body: JSON.stringify({ username: user.username, response: asseResp })
       });
       
@@ -86,7 +92,7 @@ function MyProfile({ user }) {
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/change-password`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
         body: JSON.stringify({ username: user.username, currentPassword: passwords.currentPassword, newPassword: passwords.newPassword })
       });
       const data = await response.json();
@@ -113,15 +119,18 @@ function MyProfile({ user }) {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${user.id || user._id}/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
         body: JSON.stringify(profileData)
       });
       const data = await response.json();
 
       if (response.ok) {
         setProfileMessage({ text: "Profile details updated! Please log in again to see changes.", type: "success" });
-        // Update local storage so the UI doesn't break
-        sessionStorage.setItem('hireSenseUser', JSON.stringify(data.user));
+        // Update local storage so the UI doesn't break, PRESERVE THE TOKEN!
+        sessionStorage.setItem('hireSenseUser', JSON.stringify({ ...data.user, token: user.token }));
         setTimeout(() => setProfileMessage({ text: '', type: '' }), 4000);
       } else {
         setProfileMessage({ text: data.error || "Failed to update profile.", type: "danger" });

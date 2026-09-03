@@ -12,6 +12,7 @@ async function fixDepartments() {
       'Quality Management': 'General Education',
       'Education': 'General Education',
       'Science and Mathematics': 'General Education',
+      'Business Process Management': 'General Education',
       'Computer Systems': 'Information Technology',
       'IT': 'Information Technology'
     };

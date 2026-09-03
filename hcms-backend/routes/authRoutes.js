@@ -8,6 +8,7 @@ const {
   generateAuthenticationOptions,
   verifyAuthenticationResponse
 } = require('@simplewebauthn/server');
+const { verifyToken } = require('../middleware/authMiddleware');
 const router = express.Router();
 
 const rpName = 'STI Human Capital System';
@@ -33,13 +34,22 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'STI_Super_Sec
 
 // --- ROUTE: REGISTER ACCOUNT ---
 router.post('/register', async (req, res) => {
-  const { name, username, password, role } = req.body;
+  const { name, username, password, department, email, phoneNumber } = req.body;
   try {
     const existingUser = await User.findOne({ username });
     if (existingUser) return res.status(400).json({ error: "Username already taken." });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const newUser = new User({ name, username, passwordHash, role: role || 'faculty' });
+    // Security Fix: Hardcode role to 'faculty' to prevent privilege escalation
+    const newUser = new User({ 
+      name, 
+      username, 
+      passwordHash, 
+      role: 'faculty',
+      department: department || '',
+      email: email || '',
+      phoneNumber: phoneNumber || ''
+    });
     await newUser.save();
 
     res.status(201).json({ message: "Account created successfully!" });
@@ -104,7 +114,7 @@ router.post('/login', async (req, res) => {
 });
 
 // --- ROUTE: CHANGE PASSWORD ---
-router.put('/change-password', async (req, res) => {
+router.put('/change-password', verifyToken, async (req, res) => {
   const { username, currentPassword, newPassword } = req.body;
   try {
     const user = await User.findOne({ username });
@@ -134,7 +144,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 // --- WEBAUTHN REGISTRATION ---
-router.post('/webauthn/register/generate-options', async (req, res) => {
+router.post('/webauthn/register/generate-options', verifyToken, async (req, res) => {
   const { username } = req.body;
   try {
     const user = await User.findOne({ username });
@@ -170,7 +180,7 @@ router.post('/webauthn/register/generate-options', async (req, res) => {
   }
 });
 
-router.post('/webauthn/register/verify', async (req, res) => {
+router.post('/webauthn/register/verify', verifyToken, async (req, res) => {
   const { username, response } = req.body;
   try {
     const user = await User.findOne({ username });

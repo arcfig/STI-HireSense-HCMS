@@ -52,8 +52,9 @@ const SubjectManager = () => {
     setEligibleFaculty([]);
 
     try {
-      // --- UPDATED: FETCH WITH TOKEN ---
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/subjects/${subject.courseCode}/faculty`, {
+      // URL-encode the course code to safely handle spaces, slashes, or special characters
+      const safeCourseCode = encodeURIComponent(subject.courseCode);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/subjects/${safeCourseCode}/faculty`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`, // <--- SECURITY INJECTED
@@ -133,10 +134,10 @@ const SubjectManager = () => {
                                     onClick={() => handleSubjectClick(sub)}
                                   >
                                     <div className="d-flex w-100 justify-content-between">
-                                      <h6 className="mb-1 fw-bold">{sub.courseCode}</h6>
+                                      <h6 className="mb-1 fw-bold">{sub.subjectName}</h6>
                                     </div>
                                     <small className={selectedSubject?.courseCode === sub.courseCode ? 'text-white-50' : 'text-muted'}>
-                                      {sub.subjectName}
+                                      {sub.courseCode}
                                     </small>
                                   </button>
                                 ))}
@@ -168,10 +169,19 @@ const SubjectManager = () => {
                 </div>
               ) : (
                 <>
-                  <div className="border-bottom pb-3 mb-4">
-                    <span className="badge bg-primary mb-2">Selected Subject</span>
-                    <h3 className="fw-bold mb-0">{selectedSubject.courseCode}</h3>
-                    <h5 className="text-muted">{selectedSubject.subjectName}</h5>
+                  <div 
+                    className="pb-4 mb-4 rounded-3 position-relative overflow-hidden shadow-sm d-flex align-items-center px-4 py-4" 
+                    style={{ 
+                      backgroundColor: '#f8f9fa',
+                      backgroundImage: 'linear-gradient(135deg, rgba(230,240,235,1) 0%, rgba(245,250,248,1) 100%)',
+                      border: '1px solid rgba(0,0,0,0.05)'
+                    }}
+                  >
+
+                    <div className="position-relative z-1 d-flex align-items-baseline flex-wrap">
+                      <h4 className="fw-bold mb-0 me-3" style={{ color: 'var(--brand-primary-bg)' }}>Faculty Competency:</h4>
+                      <h4 className="mb-0 text-dark fw-semibold">{selectedSubject.courseCode} - {selectedSubject.subjectName}</h4>
+                    </div>
                   </div>
 
                   <h5 className="fw-bold mb-3"><i className="bi bi-person-check-fill text-success me-2"></i>Eligible Faculty</h5>
@@ -189,7 +199,7 @@ const SubjectManager = () => {
                           <div className="card border-light shadow-sm bg-light hover-lift">
                             <div className="card-body d-flex align-items-center">
                               <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold me-3" style={{ width: '45px', height: '45px' }}>
-                                {faculty.firstName[0]}{faculty.lastName[0]}
+                                {faculty.firstName?.[0] || ''}{faculty.lastName?.[0] || ''}
                               </div>
                               <div className="flex-grow-1">
                                 <h6 className="fw-bold mb-0">{faculty.firstName} {faculty.lastName}</h6>

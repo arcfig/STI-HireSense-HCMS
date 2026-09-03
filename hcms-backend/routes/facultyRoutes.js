@@ -162,16 +162,23 @@ router.put('/status/:id', verifyToken, requireRole(['admin', 'academic_head', 'p
 // --------------------------------------------------------
 router.put('/edit/:id', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
-    const { firstName, lastName, department, documentTitle, documentType, tags } = req.body;
+    const { firstName, lastName, department, documentTitle, documentType, tags, eligibleSubjects } = req.body;
 
     let updatedTags = tags;
     if (typeof tags === 'string') {
       updatedTags = tags.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
     }
+    
+    let updatedSubjects = eligibleSubjects;
+    if (typeof eligibleSubjects === 'string') {
+      updatedSubjects = eligibleSubjects.split(',').map(sub => sub.trim().toUpperCase()).filter(sub => sub !== '');
+    } else if (Array.isArray(eligibleSubjects)) {
+      updatedSubjects = eligibleSubjects.map(sub => String(sub).trim().toUpperCase()).filter(sub => sub !== '');
+    }
 
     const updatedFaculty = await Faculty.findByIdAndUpdate(
       req.params.id,
-      { firstName, lastName, department, documentTitle, documentType, tags: updatedTags },
+      { firstName, lastName, department, documentTitle, documentType, tags: updatedTags, eligibleSubjects: updatedSubjects || [] },
       { returnDocument: 'after' }
     );
 
@@ -460,12 +467,30 @@ router.get('/subjects/:courseCode/faculty', verifyToken, requireRole(['admin', '
   try {
     const { courseCode } = req.params;
 
-    const eligibleFaculty = await Faculty.find({
+    // Fetch all approved documents that grant eligibility for this course
+    const eligibleDocs = await Faculty.find({
       eligibleSubjects: courseCode,
       status: 'approved'
     }).select('firstName lastName department tags');
 
-    res.status(200).json(eligibleFaculty);
+    // Group by full name to ensure a faculty member only appears once,
+    // even if they have multiple certificates for the same subject.
+    const uniqueFacultyMap = new Map();
+    
+    eligibleDocs.forEach(doc => {
+      const fullNameKey = `${doc.firstName} ${doc.lastName}`.toLowerCase().trim();
+      if (!uniqueFacultyMap.has(fullNameKey)) {
+        uniqueFacultyMap.set(fullNameKey, {
+          firstName: doc.firstName,
+          lastName: doc.lastName,
+          department: doc.department
+        });
+      }
+    });
+
+    const uniqueFacultyArray = Array.from(uniqueFacultyMap.values());
+
+    res.status(200).json(uniqueFacultyArray);
   } catch (error) {
     console.error("Eligibility Fetch Error:", error);
     res.status(500).json({ error: "Failed to retrieve eligible faculty." });
