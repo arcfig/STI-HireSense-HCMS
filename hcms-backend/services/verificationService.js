@@ -5,6 +5,17 @@ const { PDFDocument } = require('pdf-lib');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+const executeWithRetry = async (fn, retries = 3, delay = 2000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      console.warn(`Gemini API error, retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+};
 // We keep a simple EventEmitter for SSE
 const { EventEmitter } = require('events');
 const verificationEmitter = new EventEmitter();
@@ -93,7 +104,7 @@ const processVerificationInBackground = async (facultyId, adminUsername) => {
 
     let extractionResult;
     try {
-      extractionResult = await extractionModel.generateContent([extractionPrompt, filePart]);
+      extractionResult = await executeWithRetry(() => extractionModel.generateContent([extractionPrompt, filePart]));
     } catch (apiError) {
       console.error("Gemini Extraction Error:", apiError);
       await updateStatus(facultyId, 'failed', { error: 'Failed to process document via AI.' }, adminUsername);
@@ -187,7 +198,7 @@ const processVerificationInBackground = async (facultyId, adminUsername) => {
 
     let validationResult;
     try {
-      validationResult = await validationModel.generateContent(validationPrompt);
+      validationResult = await executeWithRetry(() => validationModel.generateContent(validationPrompt));
     } catch (apiError) {
       console.error("Gemini Validation Error:", apiError);
       await updateStatus(facultyId, 'failed', { error: 'Failed to validate event via search grounding.' }, adminUsername);
