@@ -142,23 +142,25 @@ function MyProfile({ user }) {
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="fw-bold text-dark mb-1">My Profile</h2>
-        <span className="text-muted">Manage your account details and security.</span>
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-person-fill-gear text-primary me-2"></i>My Profile
+        </h2>
+        <p className="text-muted mb-0">Manage your account details and security.</p>
       </div>
 
       <div className="row g-4">
         
         {/* Card 1: Account Details & Logout */}
         <div className="col-md-5">
-          <div className="card shadow-sm border-0 rounded-3 p-4 mb-4 bg-white">
+          <div className="card shadow-sm border-0 rounded-3 p-4 mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
             <h5 className="fw-bold text-secondary mb-4 border-bottom pb-2">
               <i className="bi bi-person-badge text-primary me-2"></i> Account Details
             </h5>
             
             <div className="mb-3">
               <label className="text-muted small fw-bold text-uppercase">Full Name</label>
-              <p className="fs-5 text-dark fw-semibold mb-0">{user?.name}</p>
+              <p className="fs-5 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{user?.name}</p>
             </div>
 
             {profileMessage.text && (
@@ -170,17 +172,17 @@ function MyProfile({ user }) {
             <form onSubmit={handleProfileSubmit}>
               <div className="mb-3">
                 <label className="text-muted small fw-bold text-uppercase">System Username</label>
-                <input type="text" className="form-control bg-light" name="username" value={profileData.username} onChange={handleProfileChange} required />
+                <input type="text" className="form-control" name="username" value={profileData.username} onChange={handleProfileChange} required />
               </div>
               
               <div className="mb-3">
                 <label className="text-muted small fw-bold text-uppercase">Email Address (For 2FA)</label>
-                <input type="email" className="form-control bg-light" name="email" value={profileData.email} onChange={handleProfileChange} placeholder="e.g., faculty@sti.edu" />
+                <input type="email" className="form-control" name="email" value={profileData.email} onChange={handleProfileChange} placeholder="e.g., faculty@sti.edu" />
               </div>
 
               <div className="mb-4">
                 <label className="text-muted small fw-bold text-uppercase">SMS Number (For 2FA)</label>
-                <input type="text" className="form-control bg-light" name="phoneNumber" value={profileData.phoneNumber} onChange={handleProfileChange} placeholder="e.g., 09123456789" />
+                <input type="text" className="form-control" name="phoneNumber" value={profileData.phoneNumber} onChange={handleProfileChange} placeholder="e.g., 09123456789" />
               </div>
 
               <button type="submit" className="btn btn-outline-primary btn-sm w-100 fw-bold shadow-sm mb-4">
@@ -203,25 +205,25 @@ function MyProfile({ user }) {
         <div className="col-md-7">
           
           {/* Security Settings (Change Password) */}
-          <div className="card shadow-sm border-0 rounded-3 p-4 bg-white">
+          <div className="card shadow-sm border-0 rounded-3 p-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
             <h5 className="fw-bold text-secondary mb-4 border-bottom pb-2"><i className="bi bi-shield-lock text-primary me-2"></i> Security Settings</h5>
             {message.text && <div className={`alert alert-${message.type} py-2 border-0 shadow-sm`}><i className={`bi ${message.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>{message.text}</div>}
             <form onSubmit={handlePasswordSubmit}>
               <div className="mb-3">
                 <label className="form-label fw-semibold text-secondary">Current Password</label>
                 <div className="input-group">
-                  <input type={showPasswords ? "text" : "password"} className="form-control bg-light border-end-0 focus-ring" name="currentPassword" value={passwords.currentPassword} onChange={handlePasswordChange} required />
-                  <button className="btn btn-outline-secondary bg-light border-start-0" type="button" onClick={() => setShowPasswords(!showPasswords)}><i className={`bi ${showPasswords ? 'bi-eye-slash' : 'bi-eye'}`}></i></button>
+                  <input type={showPasswords ? "text" : "password"} className="form-control border-end-0 focus-ring" name="currentPassword" value={passwords.currentPassword} onChange={handlePasswordChange} required />
+                  <button className="btn btn-outline-secondary border-start-0" type="button" onClick={() => setShowPasswords(!showPasswords)}><i className={`bi ${showPasswords ? 'bi-eye-slash' : 'bi-eye'}`}></i></button>
                 </div>
               </div>
               <div className="row">
                 <div className="col-md-6 mb-3">
                   <label className="form-label fw-semibold text-secondary">New Password</label>
-                  <input type={showPasswords ? "text" : "password"} className="form-control bg-light focus-ring" name="newPassword" value={passwords.newPassword} onChange={handlePasswordChange} required minLength="6" />
+                  <input type={showPasswords ? "text" : "password"} className="form-control focus-ring" name="newPassword" value={passwords.newPassword} onChange={handlePasswordChange} required minLength="6" />
                 </div>
                 <div className="col-md-6 mb-4">
                   <label className="form-label fw-semibold text-secondary">Confirm Password</label>
-                  <input type={showPasswords ? "text" : "password"} className="form-control bg-light focus-ring" name="confirmPassword" value={passwords.confirmPassword} onChange={handlePasswordChange} required minLength="6" />
+                  <input type={showPasswords ? "text" : "password"} className="form-control focus-ring" name="confirmPassword" value={passwords.confirmPassword} onChange={handlePasswordChange} required minLength="6" />
                 </div>
               </div>
               <button type="submit" className="btn btn-primary fw-bold px-4 shadow-sm" disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}>Update Password</button>
@@ -229,7 +231,7 @@ function MyProfile({ user }) {
           </div>
 
           {/* Biometric Security */}
-          <div className="card shadow-sm border-0 rounded-3 p-4 bg-white mt-4">
+          <div className="card shadow-sm border-0 rounded-3 p-4 mt-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
             <h5 className="fw-bold text-secondary mb-4 border-bottom pb-2"><i className="bi bi-fingerprint text-primary me-2"></i> Biometric Authentication</h5>
             <p className="text-muted small">Enhance your account security by registering a biometric device (e.g., Windows Hello, Touch ID, or fingerprint scanner).</p>
             {webauthnMessage.text && <div className={`alert alert-${webauthnMessage.type} py-2 border-0 shadow-sm`}><i className={`bi ${webauthnMessage.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>{webauthnMessage.text}</div>}

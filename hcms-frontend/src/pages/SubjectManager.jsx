@@ -85,10 +85,12 @@ const SubjectManager = () => {
   }
 
   return (
-    <div className="container mt-4 pb-5">
-      <div className="mb-4">
-        <h2 className="fw-bold text-primary mb-1"><i className="bi bi-journal-bookmark-fill me-2"></i>Subject Eligibility Manager</h2>
-        <p className="text-muted">Browse institutional subjects and verify faculty teaching eligibilities.</p>
+    <div className="d-flex flex-column h-100 pb-5">
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-journal-bookmark-fill text-primary me-2"></i>Subject Eligibility Manager
+        </h2>
+        <p className="text-muted mb-0">Browse institutional subjects and verify faculty teaching eligibilities.</p>
       </div>
 
       <div className="row g-4">
@@ -108,7 +110,7 @@ const SubjectManager = () => {
                     <div className="accordion-item border-bottom" key={deptIndex}>
                       <h2 className="accordion-header">
                         <button 
-                          className={`accordion-button fw-bold bg-light ${isOpen ? '' : 'collapsed'}`} 
+                          className={`accordion-button fw-bold ${isOpen ? '' : 'collapsed'}`} 
                           type="button" 
                           onClick={() => toggleDept(dept)}
                           style={{ boxShadow: 'none' }}
@@ -122,7 +124,7 @@ const SubjectManager = () => {
                           
                           {Object.keys(hierarchy[dept]).map((prog, progIndex) => (
                             <div className="border-bottom" key={progIndex}>
-                              <div className="bg-white px-4 py-2 fw-semibold text-secondary border-bottom">
+                              <div className="px-4 py-2 fw-semibold border-bottom" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>
                                 <i className="bi bi-diagram-2 me-2 text-success"></i> Program: {prog}
                               </div>
                               
@@ -158,7 +160,7 @@ const SubjectManager = () => {
 
         {/* RIGHT COLUMN: The Faculty Results */}
         <div className="col-md-7">
-          <div className="card shadow-sm border-0 h-100 bg-white">
+          <div className="card shadow-sm border-0 h-100" style={{ backgroundColor: 'var(--surface-neutral)' }}>
             <div className="card-body p-4">
               
               {!selectedSubject ? (
@@ -172,15 +174,14 @@ const SubjectManager = () => {
                   <div 
                     className="pb-4 mb-4 rounded-3 position-relative overflow-hidden shadow-sm d-flex align-items-center px-4 py-4" 
                     style={{ 
-                      backgroundColor: '#f8f9fa',
-                      backgroundImage: 'linear-gradient(135deg, rgba(230,240,235,1) 0%, rgba(245,250,248,1) 100%)',
-                      border: '1px solid rgba(0,0,0,0.05)'
+                      backgroundColor: 'var(--bg-neutral-light)',
+                      border: '1px solid var(--border-subtle)'
                     }}
                   >
 
                     <div className="position-relative z-1 d-flex align-items-baseline flex-wrap">
                       <h4 className="fw-bold mb-0 me-3" style={{ color: 'var(--brand-primary-bg)' }}>Faculty Competency:</h4>
-                      <h4 className="mb-0 text-dark fw-semibold">{selectedSubject.courseCode} - {selectedSubject.subjectName}</h4>
+                      <h4 className="mb-0 fw-semibold" style={{ color: 'var(--text-main)' }}>{selectedSubject.courseCode} - {selectedSubject.subjectName}</h4>
                     </div>
                   </div>
 
@@ -196,7 +197,7 @@ const SubjectManager = () => {
                     <div className="row g-3">
                       {eligibleFaculty.map((faculty, index) => (
                         <div className="col-12" key={index}>
-                          <div className="card border-light shadow-sm bg-light hover-lift">
+                          <div className="card shadow-sm hover-lift" style={{ backgroundColor: 'var(--bg-neutral-light)', border: '1px solid var(--border-subtle)' }}>
                             <div className="card-body d-flex align-items-center">
                               <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold me-3" style={{ width: '45px', height: '45px' }}>
                                 {faculty.firstName?.[0] || ''}{faculty.lastName?.[0] || ''}

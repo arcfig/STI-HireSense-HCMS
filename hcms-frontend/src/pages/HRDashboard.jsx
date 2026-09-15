@@ -3,6 +3,9 @@ import { toast } from 'react-hot-toast';
 
 function HRDashboard({ user }) {
   const [pendingFaculty, setPendingFaculty] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterDept, setFilterDept] = useState('');
   const [message, setMessage] = useState('');
 
   // State to track editing
@@ -206,12 +209,55 @@ function HRDashboard({ user }) {
 
   return (
     <div className="position-relative">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 className="fw-bold text-dark mb-1">HR Management Dashboard</h2>
-          <span className="text-muted">Review, edit, and verify pending faculty documents.</span>
-        </div>
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-shield-lock-fill text-primary me-2"></i>HR Management Dashboard
+        </h2>
+        <p className="text-muted mb-0">Review, edit, and verify pending faculty documents.</p>
       </div>
+
+      {/* --- SEARCH & FILTER BAR --- */}
+      {!editingDoc && (
+        <div className="card shadow-sm border-0 mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+          <div className="card-body p-3">
+            <div className="row g-2">
+              <div className="col-md-5">
+                <div className="input-group">
+                  <span className="input-group-text border-end-0" style={{ backgroundColor: 'transparent' }}><i className="bi bi-search text-muted"></i></span>
+                  <input
+                    type="text"
+                    className="form-control border-start-0 ps-0"
+                    placeholder="Search by faculty name or document title..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="col-md-4">
+                <select className="form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+                  <option value="">All Document Types</option>
+                  <option value="201 File">201 File</option>
+                  <option value="Identification">Identification (ID)</option>
+                  <option value="Certificate">Certificate / Seminar</option>
+                  <option value="Faculty Evaluation">Faculty Evaluation</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Letter of Intent">Letter of Intent</option>
+                  <option value="Non-Renewal Contract">Non-Renewal Contract</option>
+                </select>
+              </div>
+              <div className="col-md-3">
+                <select className="form-select" value={filterDept} onChange={(e) => setFilterDept(e.target.value)}>
+                  <option value="">All Departments</option>
+                  <option value="Information Technology">Information Technology</option>
+                  <option value="General Education">General Education</option>
+                  <option value="Tourism & Hospitality">Tourism & Hospitality</option>
+                  <option value="Unassigned">Unassigned</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- CONFIRMATION MODAL --- */}
       {confirmDialog.isOpen && (
@@ -225,7 +271,7 @@ function HRDashboard({ user }) {
                 <button type="button" className="btn-close btn-close-white" onClick={closeConfirmDialog}></button>
               </div>
               <div className="modal-body p-4">
-                <p className="mb-3 text-dark">
+                <p className="mb-3" style={{ color: 'var(--text-main)' }}>
                   Are you sure you want to mark this document as <strong>{confirmDialog.newStatus}</strong>?
                 </p>
                 <div className="mb-2">
@@ -258,7 +304,7 @@ function HRDashboard({ user }) {
       {editingDoc ? (
 
         /* THE EDIT FORM */
-        <div className="card shadow-sm border-0 rounded-3 p-4 bg-white">
+        <div className="card shadow-sm border-0 rounded-3 p-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
           <div className="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
             <h5 className="fw-bold text-primary mb-0"><i className="bi bi-pencil-square me-2"></i> Edit Credential Details</h5>
             <button className="btn btn-outline-secondary btn-sm" onClick={() => setEditingDoc(null)}>Cancel</button>
@@ -288,12 +334,19 @@ function HRDashboard({ user }) {
               <div className="col-md-6 mb-3">
                 <label className="form-label fw-semibold text-secondary">Document Type</label>
                 <select className="form-select bg-light border-primary" name="documentType" value={editFormData.documentType} onChange={handleEditChange} required>
-                  <option value="201 File">201 File</option>
-                  <option value="Certificate">Certificate</option>
-                  <option value="Faculty Evaluation">Faculty Evaluation</option>
-                  <option value="Contract">Contract</option>
-                  <option value="Letter of Intent">Letter of Intent</option>
-                  <option value="Non-Renewal Contract">Non-Renewal Contract</option>
+                  <optgroup label="Training & Academics">
+                    <option value="Certificate">Certificate</option>
+                  </optgroup>
+                  <optgroup label="201 File (Personal Documents)">
+                    <option value="Identification">Identification (ID)</option>
+                    <option value="201 File">General 201 File</option>
+                  </optgroup>
+                  <optgroup label="Performance & Employment">
+                    <option value="Faculty Evaluation">Faculty Evaluation</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Letter of Intent">Letter of Intent</option>
+                    <option value="Non-Renewal Contract">Non-Renewal Contract</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -325,7 +378,7 @@ function HRDashboard({ user }) {
         <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0">
-              <thead className="table-light text-secondary">
+              <thead className="text-secondary" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
                 <tr>
                   <th className="py-3 px-4 fw-semibold border-bottom-0">Faculty Member</th>
                   <th className="py-3 px-4 fw-semibold border-bottom-0">Document Submitted</th>
@@ -334,15 +387,24 @@ function HRDashboard({ user }) {
                 </tr>
               </thead>
               <tbody>
-                {pendingFaculty.map((faculty) => (
+                {pendingFaculty
+                  .filter(faculty => {
+                    const matchesSearch = 
+                      `${faculty.firstName} ${faculty.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                      (faculty.documentTitle || '').toLowerCase().includes(searchTerm.toLowerCase());
+                    const matchesType = filterType === '' || faculty.documentType === filterType || (filterType === '201 File' && faculty.documentType === 'Identification');
+                    const matchesDept = filterDept === '' || (faculty.department || 'Unassigned') === filterDept;
+                    return matchesSearch && matchesType && matchesDept;
+                  })
+                  .map((faculty) => (
                   <tr key={faculty._id}>
                     <td className="px-4 py-3">
-                      <p className="fw-bold text-dark mb-0">{faculty.firstName} {faculty.lastName}</p>
+                      <p className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{faculty.firstName} {faculty.lastName}</p>
                       <small className="text-muted">{faculty.department}</small>
                     </td>
                     <td className="px-4 py-3">
                       <p className="fw-bold text-primary mb-0">{faculty.documentTitle || 'Untitled'}</p>
-                      <span className="badge bg-light text-secondary border mt-1">{faculty.documentType || 'Other'}</span>
+                      <span className="badge border mt-1" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{faculty.documentType || 'Other'}</span>
                       {faculty.documentUrl && (
                         <button 
                           onClick={() => openViewer(faculty.documentUrl, faculty.documentTitle || 'Document Preview')}
@@ -356,7 +418,7 @@ function HRDashboard({ user }) {
                       {faculty.tags && faculty.tags.length > 0 ? (
                         <div className="d-flex flex-wrap gap-1">
                           {faculty.tags.map((tag, index) => (
-                            <span key={index} className="badge bg-light text-dark border">{tag}</span>
+                            <span key={index} className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
                           ))}
                         </div>
                       ) : (
@@ -365,18 +427,20 @@ function HRDashboard({ user }) {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="mb-2">
-                        {faculty.verificationStatus === 'verifying' && <span className="badge bg-warning text-dark"><span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Verifying...</span>}
+                        {faculty.verificationStatus === 'verifying' && <span className="badge bg-warning" style={{ color: 'var(--text-main)' }}><span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Verifying...</span>}
                         {faculty.verificationStatus === 'verified' && <span className="badge bg-success" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-shield-check me-1"></i> Verified</span>}
-                        {faculty.verificationStatus === 'flagged' && <span className="badge bg-danger" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-shield-x me-1"></i> Flagged</span>}
+                        {faculty.verificationStatus === 'flagged' && <span className="badge bg-warning" style={{cursor: 'pointer', color: 'var(--text-main)'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-exclamation-circle me-1"></i> Needs Review</span>}
                         {faculty.verificationStatus === 'failed' && <span className="badge bg-secondary" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-exclamation-triangle me-1"></i> Failed</span>}
                       </div>
                       <div className="d-flex justify-content-center gap-2 mb-2">
                         <button onClick={() => startEditing(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100">
                           <i className="bi bi-pencil-square me-1"></i> Edit Data
                         </button>
-                        <button onClick={() => handleVerify(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100" title="Verify Certificate" disabled={faculty.verificationStatus === 'verifying'}>
-                          <i className="bi bi-search me-1"></i> Verify
-                        </button>
+                        {faculty.documentType === 'Certificate' && (
+                          <button onClick={() => handleVerify(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100" title="Verify Certificate" disabled={faculty.verificationStatus === 'verifying'}>
+                            <i className="bi bi-search me-1"></i> Verify
+                          </button>
+                        )}
                       </div>
                       <div className="d-flex justify-content-center gap-2">
                         <button onClick={() => openConfirmDialog(faculty._id, 'approved')} className="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm w-50" title="Approve">
@@ -435,7 +499,7 @@ function HRDashboard({ user }) {
       {reportDoc && reportDoc.verificationData && (
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content border-0 shadow-lg">
+            <div className="modal-content border-0 shadow-lg" style={{ backgroundColor: 'var(--surface-neutral)' }}>
               <div className="modal-header bg-dark text-white">
                 <h5 className="modal-title fw-bold text-white">
                   AI Verification Report
@@ -443,21 +507,27 @@ function HRDashboard({ user }) {
                 <button type="button" className="btn-close btn-close-white" onClick={() => setReportDoc(null)}></button>
               </div>
               <div className="modal-body p-4">
+                <div className="alert alert-warning mb-4 shadow-sm" role="alert">
+                  <h6 className="alert-heading fw-bold mb-1"><i className="bi bi-exclamation-triangle-fill me-2"></i>Disclaimer</h6>
+                  <p className="mb-0 small">
+                    AI verification is not 100% accurate and may occasionally produce incorrect results. This report is provided for suggestion and guidance purposes only. Please manually review the document if necessary.
+                  </p>
+                </div>
                 <h6 className="fw-bold text-primary mb-3">AI Extracted Data</h6>
-                <div className="bg-light p-3 rounded mb-4">
+                <div className="p-3 rounded mb-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
                   <p className="mb-1"><strong>Issuer:</strong> {reportDoc.verificationData.extractedData?.issuer}</p>
                   <p className="mb-1"><strong>Topic:</strong> {reportDoc.verificationData.extractedData?.topic}</p>
                   <p className="mb-0"><strong>Date:</strong> {reportDoc.verificationData.extractedData?.date}</p>
                 </div>
                 
                 <h6 className="fw-bold text-danger mb-3">Forgery & Manipulation Analysis</h6>
-                <div className="bg-light p-3 rounded mb-4 border-start border-danger border-4">
+                <div className="p-3 rounded mb-4 border-start border-danger border-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
                   <p className="mb-1"><strong>Anomaly Score:</strong> {reportDoc.verificationData.layoutAnomalyScore !== undefined ? (reportDoc.verificationData.layoutAnomalyScore * 100).toFixed(0) + '%' : 'N/A'}</p>
                   <p className="mb-0 text-muted small">{reportDoc.verificationData.anomalyReasoning}</p>
                 </div>
 
                 <h6 className="fw-bold text-warning mb-3">Document File History</h6>
-                <div className="bg-light p-3 rounded mb-4 border-start border-warning border-4">
+                <div className="p-3 rounded mb-4 border-start border-warning border-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
                   {reportDoc.verificationData.metadata?.hasDigitalMetadata ? (
                     <>
                       <p className="mb-1"><strong>Creation Date:</strong> {reportDoc.verificationData.metadata.creationDate || 'Unknown'}</p>
@@ -471,8 +541,7 @@ function HRDashboard({ user }) {
                 </div>
 
                 <h6 className="fw-bold text-info mb-3">Grounding & Web Verification</h6>
-                <div className="bg-light p-3 rounded mb-3 border-start border-info border-4">
-                  <p className="mb-1"><strong>Is Valid Event?</strong> {reportDoc.verificationData.isValid === true ? 'Yes' : (reportDoc.verificationData.isValid === false ? 'No' : 'Unsure / Not Analyzed')}</p>
+                <div className="p-3 rounded mb-3 border-start border-info border-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
                   <p className="mb-2 text-muted small">{reportDoc.verificationData.groundingReasoning}</p>
                   {reportDoc.verificationData.referenceUrls && reportDoc.verificationData.referenceUrls.length > 0 && (
                     <div>
@@ -492,7 +561,7 @@ function HRDashboard({ user }) {
                   </div>
                 )}
               </div>
-              <div className="modal-footer bg-light">
+              <div className="modal-footer" style={{ borderTopColor: 'var(--border-subtle)' }}>
                 <button type="button" className="btn btn-outline-secondary fw-bold" onClick={() => setReportDoc(null)}>Close</button>
               </div>
             </div>

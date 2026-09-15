@@ -14,6 +14,7 @@ const UploadCredential = () => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
+  const [dataPrivacyConsent, setDataPrivacyConsent] = useState(false);
 
   // Expanded State to hold all possible fields
   const [formData, setFormData] = useState({
@@ -37,6 +38,9 @@ const UploadCredential = () => {
     intent: 'Yes',
     // Non-Renewal specific
     offenseType: '',
+    // Identification specific
+    idType: '',
+    idNumber: '',
     autoValidate: userRole === 'admin'
   });
 
@@ -84,7 +88,7 @@ const UploadCredential = () => {
       if (response.ok) {
         setFormData(prev => ({
           ...prev,
-          documentType: data.documentType || prev.documentType,
+          documentType: prev.documentType === 'Identification' ? 'Identification' : (data.documentType || prev.documentType),
           documentTitle: data.documentTitle || prev.documentTitle,
           firstName: data.firstName || prev.firstName,
           lastName: data.lastName || prev.lastName,
@@ -94,7 +98,9 @@ const UploadCredential = () => {
           expirationDate: data.expirationDate || prev.expirationDate,
           academicYear: data.academicYear || prev.academicYear,
           term: data.term || prev.term,
-          evaluationRating: data.evaluationRating || prev.evaluationRating
+          evaluationRating: data.evaluationRating || prev.evaluationRating,
+          idType: data.idType || prev.idType,
+          idNumber: data.idNumber || prev.idNumber
         }));
         
         setExtractedTags(data.tags || "");
@@ -151,8 +157,9 @@ const UploadCredential = () => {
       if (response.ok) {
         setStatusMessage({ type: 'success', text: 'Credential successfully saved to the database.' });
         // Reset form
-        setFormData(prev => ({ ...prev, documentTitle: '', issuingInstitution: '', dateReceived: '', expirationDate: '', academicYear: '', term: '', contractStart: '', contractEnd: '', offenseType: '' }));
+        setFormData(prev => ({ ...prev, documentTitle: '', issuingInstitution: '', dateReceived: '', expirationDate: '', academicYear: '', term: '', contractStart: '', contractEnd: '', offenseType: '', idNumber: '' }));
         setSelectedFile(null);
+        setDataPrivacyConsent(false);
       } else {
         setStatusMessage({ type: 'danger', text: data.error || data.message || 'Error saving to database.' });
       }
@@ -164,8 +171,13 @@ const UploadCredential = () => {
   };
 
   return (
-    <div className="container mt-4">
-      <h3 className="mb-4">Submit New Credential</h3>
+    <div className="d-flex flex-column h-100 pb-5">
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-cloud-arrow-up-fill text-primary me-2"></i>Submit New Credential
+        </h2>
+        <p className="text-muted mb-0">Upload official documents, certificates, and compliance records.</p>
+      </div>
 
       {statusMessage.text && (
         <div className={`alert alert-${statusMessage.type}`} role="alert">
@@ -181,27 +193,37 @@ const UploadCredential = () => {
             <div className="mb-3">
               <label className="form-label text-muted">Document Type</label>
               <select className="form-select border-primary" name="documentType" value={formData.documentType} onChange={handleInputChange}>
-                <option value="Certificate">Certificate / Seminar</option>
-                <option value="201 File">201 File (Personal Document)</option>
-                <option value="Faculty Evaluation">Faculty Evaluation</option>
-                <option value="Contract">Contract</option>
-                <option value="Letter of Intent">Letter of Intent</option>
-                {/* Strictly render Non-Renewal only for Admins/Heads */}
-                {isHeadOrAdmin && (
-                  <option value="Non-Renewal Contract">Non-Renewal Contract</option>
-                )}
+                <optgroup label="Training & Academics">
+                  <option value="Certificate">Certificate / Seminar</option>
+                </optgroup>
+                <optgroup label="201 File (Personal Documents)">
+                  <option value="Identification">Identification (ID)</option>
+                  <option value="201 File">General 201 File</option>
+                </optgroup>
+                <optgroup label="Performance & Employment">
+                  <option value="Faculty Evaluation">Faculty Evaluation</option>
+                  <option value="Contract">Contract</option>
+                  <option value="Letter of Intent">Letter of Intent</option>
+                  {/* Strictly render Non-Renewal only for Admins/Heads */}
+                  {isHeadOrAdmin && (
+                    <option value="Non-Renewal Contract">Non-Renewal Contract</option>
+                  )}
+                </optgroup>
               </select>
             </div>
 
             {/* UNIVERSAL FIELDS (Always shown) */}
-            <div className="card border bg-light mb-4">
+            <div className="card border mb-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
               <div className="card-body py-3">
                 <h6 className="fw-bold mb-3">File Upload & AI Extraction</h6>
-                <div className="input-group mb-3">
+                <div className="input-group mb-1">
                   <input type="file" className="form-control" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
                   <button type="button" className="btn btn-primary" onClick={handleAutoFill} disabled={!selectedFile || isExtracting}>
                     {isExtracting ? 'Extracting...' : 'Auto-Fill Details'}
                   </button>
+                </div>
+                <div className="mb-3">
+                  <small className="text-muted fst-italic">Note: Only PDF or Image formats (.png, .jpg, .jpeg) are processed.</small>
                 </div>
 
                 <div className="row">
@@ -245,7 +267,7 @@ const UploadCredential = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label text-muted">Department</label>
-                    <select className="form-select bg-light border-primary" name="department" value={formData.department} onChange={handleInputChange} required>
+                    <select className="form-select border-primary" name="department" value={formData.department} onChange={handleInputChange} required>
                       <option value="Information Technology">Information Technology</option>
                       <option value="General Education">General Education</option>
                       <option value="Tourism & Hospitality">Tourism & Hospitality</option>
@@ -310,6 +332,32 @@ const UploadCredential = () => {
                   <textarea className="form-control" name="offenseType" rows="3" placeholder="State the reason for non-renewal..." value={formData.offenseType} onChange={handleInputChange}></textarea>
                 </div>
               )}
+
+              {/* 6. IDENTIFICATION FIELDS */}
+              {formData.documentType === 'Identification' && (
+                <div className="row mb-3">
+                  <div className="col-md-4">
+                    <label className="form-label text-muted">ID Type</label>
+                    <select className="form-select border-primary" name="idType" value={formData.idType} onChange={handleInputChange}>
+                      <option value="">Select Type</option>
+                      <option value="Driver's License">Driver's License</option>
+                      <option value="SSS">SSS</option>
+                      <option value="TIN">TIN</option>
+                      <option value="Pag-IBIG">Pag-IBIG</option>
+                      <option value="PhilHealth">PhilHealth</option>
+                      <option value="Passport">Passport</option>
+                      <option value="Postal">Postal ID</option>
+                      <option value="UMID">UMID</option>
+                      <option value="PRC">PRC</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="col-md-8">
+                    <label className="form-label text-muted">ID Number</label>
+                    <input type="text" className="form-control" name="idNumber" placeholder="e.g., 123-456-789" value={formData.idNumber} onChange={handleInputChange} required />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* STRICT RBAC: Render Auto-Approve Checkbox ONLY if role is 'admin' */}
@@ -326,9 +374,28 @@ const UploadCredential = () => {
               </div>
             )}
 
-            <button type="submit" className="btn btn-success px-4 fw-bold" disabled={isSubmitting}>
-              {isSubmitting ? 'Uploading to System...' : 'Upload Document'}
-            </button>
+            {/* Privacy Consent */}
+            <div className="card shadow-sm border-0 mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+              <div className="card-body p-4">
+                <div className="form-check mb-3">
+                  <input 
+                    className="form-check-input" 
+                    type="checkbox" 
+                    id="dataPrivacyConsent" 
+                    checked={dataPrivacyConsent}
+                    onChange={(e) => setDataPrivacyConsent(e.target.checked)}
+                    required 
+                  />
+                  <label className="form-check-label text-muted small" htmlFor="dataPrivacyConsent">
+                    <strong>Data Privacy Consent:</strong> By uploading this document, I consent to the collection, storage, and processing of my personal and identification data by the HR department. Under the <a href="https://privacy.gov.ph/data-privacy-act/" target="_blank" rel="noopener noreferrer">Data Privacy Act of 2012 (RA 10173)</a>, Human Resources departments are legally allowed to collect and store identification data for legitimate employment and verification purposes. I understand this data will be securely stored.
+                  </label>
+                </div>
+
+                <button type="submit" className="btn btn-success px-4 fw-bold" disabled={isSubmitting || !dataPrivacyConsent}>
+                  {isSubmitting ? 'Uploading to System...' : 'Upload Document'}
+                </button>
+              </div>
+            </div>
 
           </form>
         </div>

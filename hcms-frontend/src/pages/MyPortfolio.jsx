@@ -158,7 +158,7 @@ const MyPortfolio = ({ user }) => {
   };
 
   return (
-    <div className="container mt-4 pb-5">
+    <div className="d-flex flex-column h-100 pb-5">
       {/* Header Section */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>

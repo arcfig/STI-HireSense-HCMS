@@ -19,19 +19,64 @@
   /* Synthesized Luminous Glow Variables */
   --brand-glow-accent: #29b05a;
   /* High-saturation green for illumination */
-  --glass-bg: rgba(4, 15, 12, 0.4); /* Dark translucent for glassmorphism */
-  --glass-border: rgba(255, 255, 255, 0.15); /* Subtle outline */
+  --glass-bg: rgba(4, 15, 12, 0.4);
+  /* Dark translucent for glassmorphism */
+  --glass-border: rgba(255, 255, 255, 0.15);
+  /* Subtle outline */
+}
+
+[data-bs-theme="dark"] {
+  --surface-neutral: #1e1e1e;
+  --border-neutral: #333333;
+  --text-main: #f8f9fa;
+  --text-muted: #adb5bd;
+  --bg-neutral-light: #2c2c2c;
+  --bg-neutral-tint: #1c1c1c;
+  --border-subtle: #444444;
+  --border-tint: #333333;
+  --text-tint: #6ea8fe;
+  --app-bg: #121212;
 }
 
 body {
-  background-color: #bec9d4;
-  /* The light gray background from the mockup */
+  background-color: var(--bg-neutral-light);
+  color: var(--text-main);
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
   font-weight: 400;
+}
+
+.app-background {
+  background-color: var(--app-bg, #f8fafc);
+  position: relative;
+  z-index: 0;
+}
+
+.app-background::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  background-image: url('./assets/backgroundlayout.png');
+
+  /* ---> CHANGE THIS VALUE TO ADJUST THE WATERMARK SIZE <--- */
+  background-size: 50vw;
+
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-attachment: fixed;
+
+  /* ---> CHANGE THIS VALUE TO ADJUST THE WATERMARK OPACITY (0.0 to 1.0) <--- */
+  opacity: 0.4;
+  /* e.g., 0.5 = 50% transparent */
 }
 
 /* Custom Scrollbars */
@@ -325,8 +370,10 @@ h6.text-muted,
 
 /* Dropdown options for select */
 .glass-input option {
-  background-color: #040f0c; /* Matches dark theme background */
-  color: #f3ffde; /* Brand text color */
+  background-color: #040f0c;
+  /* Matches dark theme background */
+  color: #f3ffde;
+  /* Brand text color */
 }
 
 .glass-btn-outline {

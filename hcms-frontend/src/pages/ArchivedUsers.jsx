@@ -61,14 +61,18 @@ const ArchivedUsers = () => {
   if (loading) return <div className="container mt-5 text-center">Loading Archived Data...</div>;
 
   return (
-    <div className="container mt-4">
-      <h2 className="fw-bold mb-1">Archived Accounts</h2>
-      <p className="text-muted mb-4">Review and restore disabled system accounts.</p>
+    <div className="d-flex flex-column h-100">
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-archive-fill text-primary me-2"></i>Archived Accounts
+        </h2>
+        <p className="text-muted mb-0">Review and restore disabled system accounts.</p>
+      </div>
 
       <div className="card shadow-sm border-0">
         <div className="card-body p-0">
           <table className="table table-hover mb-0">
-            <thead className="table-light">
+            <thead className="text-secondary" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
               <tr>
                 <th className="px-4 py-3">Full Name</th>
                 <th className="py-3">System Username</th>
@@ -84,7 +88,7 @@ const ArchivedUsers = () => {
               ) : (
                 archivedUsers.map((user) => (
                   <tr key={user._id} className="align-middle text-muted opacity-75">
-                    <td className="px-4 py-3 fw-bold">{user.name}</td>
+                    <td className="px-4 py-3 fw-bold" style={{ color: 'var(--text-main)' }}>{user.name}</td>
                     <td className="py-3">{user.username}</td>
                     <td className="py-3">
                       <span className="badge bg-secondary text-uppercase">{user.role}</span>

@@ -80,17 +80,19 @@ function CandidateMatcher() {
 
   return (
     <div>
-      <div className="mb-4">
-        <h2 className="fw-bold text-dark mb-1"><i className="bi bi-robot text-primary me-2"></i>AI Candidate Matcher</h2>
-        <span className="text-muted">Describe the role or skills you need, and the AI will rank the best faculty fits.</span>
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-robot text-primary me-2"></i>AI Candidate Matcher
+        </h2>
+        <p className="text-muted mb-0">Describe the role or skills you need, and the AI will rank the best faculty fits.</p>
       </div>
 
-      <div className="card shadow-sm border-0 rounded-3 p-4 mb-4 bg-white">
+      <div className="card shadow-sm border-0 rounded-3 p-4 mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
         <form onSubmit={handleMatch}>
           <div className="mb-3">
             <label className="form-label fw-bold text-secondary">Job Description / Requirements</label>
             <textarea 
-              className="form-control bg-light border-primary-subtle focus-ring" 
+              className="form-control border-primary-subtle focus-ring" 
               rows="3" 
               placeholder="e.g., We need a faculty member experienced in Java programming to teach an advanced backend development seminar..."
               value={requirements}
@@ -115,7 +117,7 @@ function CandidateMatcher() {
           <div className="row g-4">
             {matches.map((faculty, index) => (
               <div className="col-12" key={faculty._id}>
-                <div className={`card shadow-sm border-0 rounded-3 p-4 ${index === 0 ? 'border-start border-5 border-success bg-success bg-opacity-10' : 'bg-white'}`}>
+                <div className={`card shadow-sm border-0 rounded-3 p-4 ${index === 0 ? 'border-start border-5 border-success bg-success bg-opacity-10' : ''}`} style={{ backgroundColor: index !== 0 ? 'var(--surface-neutral)' : undefined }}>
                   <div className="row align-items-center">
                     
                     {/* Rank & Score */}
@@ -129,14 +131,14 @@ function CandidateMatcher() {
                     {/* Faculty Details */}
                     <div className="col-md-4 ps-4">
                       {/* CHANGED: We now just use faculty.name since it's aggregated */}
-                      <h4 className="fw-bold text-dark mb-1">{faculty.name}</h4>
+                      <h4 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>{faculty.name}</h4>
                       <p className="text-muted fw-semibold mb-2">{faculty.department}</p>
                       <div className="d-flex flex-wrap gap-1">
                         {faculty.skills.map((tag, i) => {
                           // Bonus: Show their star rating next to the tag if they have one!
                           const rating = faculty.skillRatings && faculty.skillRatings[tag];
                           return (
-                            <span key={i} className="badge bg-light text-dark border border-secondary-subtle">
+                            <span key={i} className="badge bg-light border border-secondary-subtle" style={{ color: 'var(--text-main)' }}>
                               {tag} {rating ? <span className="text-warning ms-1"><i className="bi bi-star-fill"></i> {rating}</span> : ''}
                             </span>
                           );
@@ -147,7 +149,7 @@ function CandidateMatcher() {
                     {/* AI Reasoning */}
                     <div className="col-md-6 border-start ps-4">
                       <p className="fw-bold text-secondary mb-1 small text-uppercase"><i className="bi bi-cpu-fill me-1"></i> AI Analysis</p>
-                      <p className="text-dark mb-0 fst-italic">"{faculty.matchReason}"</p>
+                      <p className="mb-0 fst-italic" style={{ color: 'var(--text-main)' }}>"{faculty.matchReason}"</p>
                     </div>
 
                   </div>

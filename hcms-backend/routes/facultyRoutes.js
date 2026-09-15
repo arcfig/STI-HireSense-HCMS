@@ -9,6 +9,7 @@ const bcrypt = require('bcryptjs');
 const Department = require('../models/Department');
 const Program = require('../models/Program');
 const Subject = require('../models/Subject');
+const validator = require('ph-id-validator');
 
 // 1. Import the new jose JWT middleware
 const { verifyToken, requireRole } = require('../middleware/authMiddleware');
@@ -16,7 +17,7 @@ const { verifyToken, requireRole } = require('../middleware/authMiddleware');
 // --------------------------------------------------------
 // ROUTE: AI Document Extraction (Auto-Fill) (Secured: All logged-in users)
 // --------------------------------------------------------
-router.post('/extract', upload.single('document'), async (req, res) => {
+router.post('/extract', verifyToken, upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No document provided for extraction." });
@@ -28,8 +29,8 @@ router.post('/extract', upload.single('document'), async (req, res) => {
     const prompt = `You are a highly accurate HR data extraction AI. Read the attached document.
     
     TASK 1: CLASSIFICATION
-    Determine the exact document type. You MUST select strictly from one of these six options:
-    "201 File", "Certificate", "Faculty Evaluation", "Contract", "Letter of Intent", "Non-Renewal Contract".
+    Determine the exact document type. You MUST select strictly from one of these seven options:
+    "201 File", "Certificate", "Faculty Evaluation", "Contract", "Letter of Intent", "Non-Renewal Contract", "Identification".
     
     TASK 2: STANDARD EXTRACTION
     Extract the person's first name, last name, the exact title of the document, and infer their academic department.
@@ -37,13 +38,14 @@ router.post('/extract', upload.single('document'), async (req, res) => {
     
     TASK 3: DYNAMIC METRICS
     - If the document is a "Faculty Evaluation", extract the "academicYear" (e.g., "SY 2025-2026"), "term" (e.g., "Term 1"), and the final overall "evaluationRating" as a number (e.g., 4.35).
+    - If the document is an "Identification", extract the "idType" (MUST be one of: "Driver's License", "SSS", "TIN", "Pag-IBIG", "PhilHealth", "Passport", "Postal", "UMID", "PRC", "Other") and the "idNumber". You MUST extract the "idNumber" EXACTLY as printed on the card (e.g., "123-456-789-000" or "33-1234567-8"). DO NOT leave it blank if a number is visible.
     
     STRICT INSTRUCTION REGARDING SKILLS/TAGS:
-    - ONLY extract a comma-separated string of key skills or technologies if the document is classified as a "Certificate".
-    - For ALL other document types (201 File, Contract, Evaluation, LOI), the "tags" field MUST be an empty string ("").
+    - ONLY extract a comma-separated string of key skills, technologies, or degree majors (e.g., if it's a Computer Science diploma, extract "Computer Science") if the document is classified as a "Certificate".
+    - For ALL other document types (201 File, Contract, Evaluation, LOI, Identification), the "tags" field MUST be an empty string ("").
     
     You MUST return ONLY a valid JSON object. Do not use markdown.
-    Example format: {"firstName": "John", "lastName": "Doe", "documentType": "Faculty Evaluation", "documentTitle": "Performance Evaluation", "department": "Information Technology", "dateReceived": "2026-01-26", "expirationDate": "", "issuingInstitution": "STI", "academicYear": "SY 2025-2026", "term": "Term 1", "evaluationRating": 4.35, "tags": ""}`;
+    Example JSON response if it is an Identification: {"firstName": "Mia", "lastName": "Dela Cruz", "documentType": "Identification", "documentTitle": "Tax Identification Number ID", "department": "Information Technology", "dateReceived": "2026-01-26", "expirationDate": "", "issuingInstitution": "Bureau of Internal Revenue", "academicYear": "", "term": "", "evaluationRating": null, "idType": "TIN", "idNumber": "123-456-789-000", "tags": ""}`;
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
@@ -93,7 +95,7 @@ router.post('/extract', upload.single('document'), async (req, res) => {
 // --------------------------------------------------------
 router.get('/pending', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
-    const pendingProfiles = await Faculty.find({ status: 'pending' });
+    const pendingProfiles = await Faculty.find({ status: 'pending' }).sort({ createdAt: -1 });
     res.status(200).json(pendingProfiles);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch pending profiles" });
@@ -130,9 +132,14 @@ router.put('/status/:id', verifyToken, requireRole(['admin', 'academic_head', 'p
     const { id } = req.params;
     const { status, remarks } = req.body;
 
+    const facultyToUpdate = await Faculty.findById(id);
+    if (!facultyToUpdate) return res.status(404).json({ error: "Document not found." });
+
+    let updateFields = { status: status, remarks: remarks || '' };
+
     const updatedFaculty = await Faculty.findByIdAndUpdate(
       id,
-      { status: status, remarks: remarks || '' },
+      updateFields,
       { new: true }
     );
 
@@ -360,6 +367,34 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
 
     const finalStatus = (['hr', 'admin', 'academic_head', 'program_head'].includes(uploaderRole) && autoValidate === 'true') ? 'approved' : 'pending';
 
+    // --- ID VALIDATION LOGIC ---
+    if (documentType === 'Identification' && req.body.idNumber && req.body.idType) {
+      let isValidFormat = true;
+      const idNum = req.body.idNumber.trim();
+      switch (req.body.idType) {
+        case "Driver's License": isValidFormat = validator.isDriversLicense ? validator.isDriversLicense(idNum) : true; break;
+        case "SSS": isValidFormat = validator.isSSSId ? validator.isSSSId(idNum) : true; break;
+        case "TIN": isValidFormat = validator.isTinId ? validator.isTinId(idNum) : true; break;
+        case "Pag-IBIG": isValidFormat = validator.isPagIbigLoyaltyCard ? validator.isPagIbigLoyaltyCard(idNum) : true; break;
+        case "PhilHealth": isValidFormat = validator.isPhilhealthId ? validator.isPhilhealthId(idNum) : true; break;
+        case "Passport": isValidFormat = validator.isPassport ? validator.isPassport(idNum) : true; break;
+        case "Postal": isValidFormat = validator.isPostalId ? validator.isPostalId(idNum) : true; break;
+        case "UMID": isValidFormat = validator.isUMID ? validator.isUMID(idNum) : true; break;
+        case "PRC": isValidFormat = validator.isPRCId ? validator.isPRCId(idNum) : true; break;
+        default: isValidFormat = true; // For 'Other'
+      }
+      
+      if (!isValidFormat) {
+        // Delete uploaded image from Cloudinary since we are rejecting
+        if (fileUrl) {
+          const publicIdMatch = fileUrl.match(/\/v\d+\/([^/]+\/[^.]+)\./);
+          if (publicIdMatch) await cloudinary.uploader.destroy(publicIdMatch[1]).catch(e => console.error(e));
+        }
+        return res.status(400).json({ error: `Invalid format for ${req.body.idType}. Please correct the ID Number.` });
+      }
+    }
+    // ---------------------------
+
     const firstWord = firstName.trim().split(/\s+/)[0];
     const lastWords = lastName.trim().split(/\s+/);
     const lastWord = lastWords[lastWords.length - 1];
@@ -415,6 +450,8 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
       contractEnd: req.body.contractEnd || '',
       intent: req.body.intent || '',
       offenseType: req.body.offenseType || '',
+      idType: req.body.idType || '',
+      idNumber: req.body.idNumber || '',
       evaluationRating: req.body.evaluationRating ? parseFloat(req.body.evaluationRating) : null
     });
 

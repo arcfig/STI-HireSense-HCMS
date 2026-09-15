@@ -147,7 +147,7 @@ const FacultyPortal = ({ user }) => {
 
 
   return (
-    <div className="container mt-2">
+    <div className="d-flex flex-column h-100 pb-5">
       <div className="card border-0 mb-4 position-relative overflow-hidden" style={{ backgroundColor: 'var(--brand-primary-bg)', color: 'var(--brand-primary-text)', borderRadius: '12px' }}>
         <div className="position-absolute top-0 end-0 h-100 opacity-25" style={{ pointerEvents: 'none' }}>
           <svg width="300" height="100%" viewBox="0 0 300 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -190,7 +190,7 @@ const FacultyPortal = ({ user }) => {
             <div className="row g-3 mb-4">
               <div className="col-sm-6">
                 {isHeadOrAdmin ? (
-                  <div className="card h-100 bg-white hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                  <div className="card h-100 hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
                     <div className="card-body p-3 d-flex align-items-center">
                       <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
                         <i className="bi bi-people-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
@@ -202,7 +202,7 @@ const FacultyPortal = ({ user }) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="card h-100 bg-white hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                  <div className="card h-100 hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
                     <div className="card-body p-3 d-flex align-items-center">
                       <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
                         <i className="bi bi-person-badge-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
@@ -217,7 +217,7 @@ const FacultyPortal = ({ user }) => {
               </div>
 
               <div className="col-sm-6">
-                <div className="card h-100 bg-white hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                <div className="card h-100 hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
                   <div className="card-body p-3 d-flex align-items-center">
                     <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
                       <i className="bi bi-cloud-arrow-up-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
@@ -268,7 +268,7 @@ const FacultyPortal = ({ user }) => {
                     </div>
                   </div>
                 ) : (
-                  <div className="card border-0 shadow-sm rounded-3 p-5 text-center bg-white d-flex flex-column align-items-center justify-content-center hover-lift transition-all">
+                  <div className="card border-0 shadow-sm rounded-3 p-5 text-center d-flex flex-column align-items-center justify-content-center hover-lift transition-all" style={{ backgroundColor: 'var(--surface-neutral)' }}>
                     <i className="bi bi-check2-circle text-success opacity-50" style={{ fontSize: '4rem' }}></i>
                     <h5 className="text-muted mt-3 fw-bold">Queue Empty</h5>
                     <p className="text-muted small mb-0">All pending credentials have been reviewed and processed.</p>
@@ -293,7 +293,7 @@ const FacultyPortal = ({ user }) => {
                             <i className="bi bi-people-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
                           </div>
                         </div>
-                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.admin.totalFaculty}</h2>
+                        <h2 className="fs-4 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{metrics.admin.totalFaculty}</h2>
                       </div>
                     </div>
                   </div>
@@ -307,7 +307,7 @@ const FacultyPortal = ({ user }) => {
                             <i className="bi bi-inbox-fill" style={{ color: 'var(--semantic-warning)' }}></i>
                           </div>
                         </div>
-                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.admin.pendingApprovals}</h2>
+                        <h2 className="fs-4 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{metrics.admin.pendingApprovals}</h2>
                       </div>
                       <div className="position-absolute bottom-0 start-0 w-100 z-0" style={{ height: '40px', opacity: 0.15 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -328,7 +328,7 @@ const FacultyPortal = ({ user }) => {
                       bgColor = 'rgba(6, 147, 227, 0.1)';
                     } else if (dept === 'Information Technology') {
                       iconColor = 'var(--border-neutral)';
-                      bgColor = '#f8fafc';
+                      bgColor = 'var(--bg-neutral-light)';
                     }
 
                     return (
@@ -341,7 +341,7 @@ const FacultyPortal = ({ user }) => {
                                 <i className="bi bi-diagram-3-fill" style={{ color: iconColor }}></i>
                               </div>
                             </div>
-                            <h2 className="fs-4 fw-semibold text-dark mb-0">{count}</h2>
+                            <h2 className="fs-4 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{count}</h2>
                           </div>
                         </div>
                       </div>
@@ -359,7 +359,7 @@ const FacultyPortal = ({ user }) => {
                             <i className="bi bi-file-earmark-check-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
                           </div>
                         </div>
-                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.faculty.docCount}</h2>
+                        <h2 className="fs-4 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{metrics.faculty.docCount}</h2>
                       </div>
                       <div className="position-absolute bottom-0 start-0 w-100 z-0" style={{ height: '40px', opacity: 0.15 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -379,7 +379,7 @@ const FacultyPortal = ({ user }) => {
                             <i className="bi bi-patch-check-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
                           </div>
                         </div>
-                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.faculty.skillCount}</h2>
+                        <h2 className="fs-4 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{metrics.faculty.skillCount}</h2>
                       </div>
                     </div>
                   </div>
@@ -392,7 +392,7 @@ const FacultyPortal = ({ user }) => {
                             <i className="bi bi-star-fill" style={{ color: 'var(--brand-primary-bg)' }}></i>
                           </div>
                         </div>
-                        <h2 className="fs-4 fw-semibold text-dark mb-0">{metrics.faculty.rating}</h2>
+                        <h2 className="fs-4 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{metrics.faculty.rating}</h2>
                       </div>
                     </div>
                   </div>

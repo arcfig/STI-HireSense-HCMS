@@ -240,20 +240,19 @@ const FacultyDirectory = () => {
   return (
     <div className="d-flex flex-column h-100">
 
-      <div className="flex-shrink-0">
-        <div className="d-flex justify-content-between align-items-end mb-3">
-          <div>
-            <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>Faculty Directory</h2>
-            <p className="text-muted mb-0">Browse and filter verified institutional competencies.</p>
-          </div>
-        </div>
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-people-fill text-primary me-2"></i>Faculty Directory
+        </h2>
+        <p className="text-muted mb-0">Browse and filter verified institutional competencies.</p>
+      </div>
 
-        <div className="card shadow-sm border-0 mb-3 bg-white">
+        <div className="card shadow-sm border-0 mb-3" style={{ backgroundColor: 'var(--surface-neutral)' }}>
           <div className="card-body p-3">
             <div className="row g-2">
               <div className="col-md-5">
                 <div className="input-group">
-                  <span className="input-group-text bg-light border-end-0"><i className="bi bi-search text-muted"></i></span>
+                  <span className="input-group-text border-end-0" style={{ backgroundColor: 'transparent' }}><i className="bi bi-search text-muted"></i></span>
                   <input
                     type="text"
                     className="form-control border-start-0 ps-0"
@@ -289,7 +288,6 @@ const FacultyDirectory = () => {
             </div>
           </div>
         </div>
-      </div>
 
       <div className="flex-grow-1 overflow-y-auto overflow-x-hidden pe-2 px-1" style={{ minHeight: 0 }}>
         {directoryData.length === 0 ? (
@@ -316,12 +314,12 @@ const FacultyDirectory = () => {
                           {getInitials(faculty.fullName)}
                         </div>
                         <div>
-                          <h5 className="fw-bold mb-0 text-dark">{faculty.fullName}</h5>
+                          <h5 className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{faculty.fullName}</h5>
                           <p className="text-muted small mb-0">{faculty.department}</p>
                         </div>
                       </div>
 
-                      <div className="mb-3 border-bottom pb-3">
+                      <div className="mb-3 border-bottom pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
                         <span className="badge rounded-pill px-3 py-2" style={{ backgroundColor: 'var(--bg-neutral-tint)', color: 'var(--text-tint)', border: '1px solid var(--border-tint)' }}>
                           <i className="bi bi-patch-check-fill me-1"></i> {faculty.documentCount} Verified Credential{faculty.documentCount !== 1 ? 's' : ''}
                         </span>
@@ -332,10 +330,10 @@ const FacultyDirectory = () => {
                         {visibleTags.length > 0 ? (
                           <>
                             {visibleTags.map((tag, i) => (
-                              <span key={i} className="badge bg-light text-secondary border px-2 py-1" style={{ fontSize: '0.75rem' }}>{tag}</span>
+                              <span key={i} className="badge border px-2 py-1" style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
                             ))}
                             {extraTagsCount > 0 && (
-                              <span className="badge bg-secondary bg-opacity-10 text-secondary border px-2 py-1" style={{ fontSize: '0.75rem' }}>
+                              <span className="badge border px-2 py-1" style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-muted)' }}>
                                 +{extraTagsCount} more
                               </span>
                             )}
@@ -359,7 +357,7 @@ const FacultyDirectory = () => {
               );
             }) : (
               <div className="col-12 py-5 mt-4 d-flex flex-column align-items-center justify-content-center text-center hover-lift transition-all">
-                <div className="p-4 rounded-circle mb-3 shadow-sm" style={{ backgroundColor: '#ffffff' }}>
+                <div className="p-4 rounded-circle mb-3 shadow-sm" style={{ backgroundColor: 'var(--surface-neutral)' }}>
                   <i className="bi bi-search text-muted opacity-50" style={{ fontSize: '3rem' }}></i>
                 </div>
                 <h5 className="text-muted fw-bold">No Match Found</h5>
@@ -374,9 +372,9 @@ const FacultyDirectory = () => {
       {selectedFaculty && createPortal(
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', overflowY: 'auto', zIndex: 1055, position: 'fixed', inset: 0 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered">
-            <div className="modal-content bg-light border-0 shadow-lg my-4">
+            <div className="modal-content border-0 shadow-lg my-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
 
-              <div className="modal-header px-4 py-3 bg-white sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+              <div className="modal-header px-4 py-3 sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-neutral)' }}>
                 <div className="d-flex align-items-center">
                   <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}>
                     {getInitials(selectedFaculty.fullName)}
@@ -389,7 +387,7 @@ const FacultyDirectory = () => {
                 <button type="button" className="btn-close" onClick={closeProfile}></button>
               </div>
 
-              <div className="modal-body p-4 bg-light">
+              <div className="modal-body p-4">
                 <div className="row mb-4 align-items-stretch">
                   <div className="col-md-5">
                     <div className="card shadow-sm h-100 border-0">
@@ -444,7 +442,7 @@ const FacultyDirectory = () => {
                         <div className="d-flex flex-wrap gap-2 mb-3">
                           {selectedFaculty.tags.length > 0 ? (
                             (showAllSkills ? selectedFaculty.tags : selectedFaculty.tags.slice(0, VISIBLE_SKILLS_LIMIT)).map((tag, index) => (
-                              <span key={index} className="badge bg-light text-dark border px-3 py-2">{tag}</span>
+                              <span key={index} className="badge border px-3 py-2" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
                             ))
                           ) : (
                             <p className="text-muted font-italic">No verified skills extracted yet.</p>
@@ -508,7 +506,7 @@ const FacultyDirectory = () => {
                         className={`nav-link ${activeTab === tabName ? 'shadow-sm' : 'border-0'}`}
                         onClick={() => setActiveTab(tabName)}
                         style={{
-                          backgroundColor: activeTab === tabName ? '#ffffff' : 'transparent',
+                          backgroundColor: activeTab === tabName ? 'var(--surface-neutral)' : 'transparent',
                           color: activeTab === tabName ? 'var(--text-tint)' : 'var(--text-muted)',
                           border: 'none',
                           borderBottom: activeTab === tabName ? '2px solid var(--text-tint)' : 'none',
@@ -531,7 +529,7 @@ const FacultyDirectory = () => {
                         <div className="card shadow-sm border-0 h-100">
                           <div className="card-body d-flex flex-column">
                             <h6 className="fw-bold mb-1">{doc.documentTitle}</h6>
-                            <span className="badge bg-light text-secondary border mb-3 align-self-start">{doc.documentType}</span>
+                            <span className="badge border mb-3 align-self-start" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{doc.documentType}</span>
 
                             {doc.issuingInstitution && <p className="small mb-1"><strong>Issuer:</strong> {doc.issuingInstitution}</p>}
                             {doc.academicYear && <p className="small mb-1"><strong>Period:</strong> {doc.academicYear} {doc.term}</p>}
@@ -554,7 +552,7 @@ const FacultyDirectory = () => {
                                 <p className="small fw-bold text-muted mb-1 mt-auto">Extracted Data Points</p>
                                 <div className="d-flex flex-wrap gap-1 mb-3">
                                   {doc.tags.map((tag, i) => (
-                                    <span key={i} className="badge bg-light text-secondary border" style={{ fontSize: '0.75rem' }}>{tag}</span>
+                                    <span key={i} className="badge border" style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
                                   ))}
                                 </div>
                               </>
@@ -573,7 +571,7 @@ const FacultyDirectory = () => {
                         </div>
                       </div>
                     )) : (
-                      <div className="col-12 text-center py-5 text-muted fst-italic bg-white border rounded">
+                      <div className="col-12 text-center py-5 text-muted fst-italic border rounded" style={{ backgroundColor: 'var(--surface-neutral)' }}>
                         No documents found for this category.
                       </div>
                     )}

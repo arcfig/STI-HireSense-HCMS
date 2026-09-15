@@ -128,11 +128,11 @@ function ManageUsers({ currentUser }) {
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 className="fw-bold text-dark mb-1">System User Management</h2>
-          <span className="text-muted">Control access levels and manage registered accounts.</span>
-        </div>
+      <div className="mb-4 flex-shrink-0">
+        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+          <i className="bi bi-person-lines-fill text-primary me-2"></i>System User Management
+        </h2>
+        <p className="text-muted mb-0">Control access levels and manage registered accounts.</p>
       </div>
 
       {message.text && (
@@ -145,7 +145,7 @@ function ManageUsers({ currentUser }) {
       <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0">
-            <thead className="table-light text-secondary">
+            <thead className="text-secondary" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
               <tr>
                 <th className="py-3 px-4 fw-semibold border-bottom-0">Full Name</th>
                 <th className="py-3 px-4 fw-semibold border-bottom-0">System Username</th>
@@ -156,7 +156,7 @@ function ManageUsers({ currentUser }) {
             <tbody>
               {users.map((user) => (
                 <tr key={user._id}>
-                  <td className="px-4 py-3 fw-bold text-dark">{user.name}</td>
+                  <td className="px-4 py-3 fw-bold" style={{ color: 'var(--text-main)' }}>{user.name}</td>
                   <td className="px-4 py-3 text-muted">{user.username}</td>
                   <td className="px-4 py-3">
                     <span className={`badge ${getBadgeColor(user.role)} px-3 py-2`}>

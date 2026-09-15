@@ -16,7 +16,8 @@ const facultySchema = new mongoose.Schema({
       'Faculty Evaluation', 
       'Contract', 
       'Letter of Intent', 
-      'Non-Renewal Contract'
+      'Non-Renewal Contract',
+      'Identification'
     ]
   },
   
@@ -41,6 +42,8 @@ const facultySchema = new mongoose.Schema({
   contractEnd: { type: String, default: '' },
   intent: { type: String, default: '' },
   offenseType: { type: String, default: '' },
+  idType: { type: String, default: '' },
+  idNumber: { type: String, default: '' },
   
   // Verification Tracking
   verificationStatus: { type: String, default: 'idle', enum: ['idle', 'verifying', 'verified', 'flagged', 'failed'] },
