@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const UploadCredential = () => {
   // 1. Extract the token and role securely from session
@@ -10,6 +10,28 @@ const UploadCredential = () => {
   const isHeadOrAdmin = ['admin', 'academic_head', 'program_head'].includes(userRole);
 
   const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreviewUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedFile]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isPreviewOpen) {
+        setIsPreviewOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isPreviewOpen]);
   const [extractedTags, setExtractedTags] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -222,8 +244,18 @@ const UploadCredential = () => {
                     {isExtracting ? 'Extracting...' : 'Auto-Fill Details'}
                   </button>
                 </div>
-                <div className="mb-3">
+                <div className="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
                   <small className="text-muted fst-italic">Note: Only PDF or Image formats (.png, .jpg, .jpeg) are processed.</small>
+                  {previewUrl && (
+                    <button type="button" onClick={() => setIsPreviewOpen(true)} className="btn btn-sm btn-outline-info fw-bold shadow-sm">
+                      <i className="bi bi-eye me-1"></i> Preview File
+                    </button>
+                  )}
+                </div>
+
+                <div className="alert alert-warning py-2 px-3 small border-0 shadow-sm d-flex align-items-center" role="alert">
+                  <i className="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                  <span><strong>Disclaimer:</strong> Auto-extracted details might have mistakes. Please check and verify that all details are correct before submitting.</span>
                 </div>
 
                 <div className="row">
@@ -400,6 +432,35 @@ const UploadCredential = () => {
           </form>
         </div>
       </div>
+
+      {isPreviewOpen && previewUrl && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
+          <div className="modal-dialog modal-xl modal-dialog-centered">
+            <div className="modal-content bg-dark border-0 shadow-lg">
+              <div className="modal-header border-bottom border-secondary px-4 py-3">
+                <h5 className="modal-title text-white"><i className="bi bi-file-earmark-text text-primary me-2"></i>{selectedFile?.name}</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setIsPreviewOpen(false)}></button>
+              </div>
+              <div className="modal-body p-0 d-flex justify-content-center align-items-center" style={{ height: '75vh', backgroundColor: '#1e1e1e', overflow: 'hidden' }}>
+                {selectedFile?.type.startsWith('image/') ? (
+                  <img src={previewUrl} alt="Document Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <object data={previewUrl} type="application/pdf" width="100%" height="100%" style={{ border: 'none' }}>
+                    <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white">
+                      <p className="mb-3">Browser native PDF viewer is disabled.</p>
+                      <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light">Open Externally</a>
+                    </div>
+                  </object>
+                )}
+              </div>
+              <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">Fallback: Open in New Tab</a>
+                <button type="button" className="btn btn-primary fw-bold" onClick={() => setIsPreviewOpen(false)}>Close Viewer</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

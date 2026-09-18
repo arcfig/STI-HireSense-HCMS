@@ -147,8 +147,8 @@ const FacultyPortal = ({ user }) => {
 
 
   return (
-    <div className="d-flex flex-column h-100 pb-5">
-      <div className="card border-0 mb-4 position-relative overflow-hidden" style={{ backgroundColor: 'var(--brand-primary-bg)', color: 'var(--brand-primary-text)', borderRadius: '12px' }}>
+    <div className="d-flex flex-column pb-5">
+      <div className="card border-0 mb-4 position-relative overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--brand-primary-bg)', color: 'var(--brand-primary-text)', borderRadius: '12px' }}>
         <div className="position-absolute top-0 end-0 h-100 opacity-25" style={{ pointerEvents: 'none' }}>
           <svg width="300" height="100%" viewBox="0 0 300 100" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M0,100 C100,0 200,100 300,0 L300,100 Z" fill="rgba(255, 255, 255, 0.2)" />

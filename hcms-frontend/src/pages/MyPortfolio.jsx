@@ -152,7 +152,7 @@ const MyPortfolio = ({ user }) => {
   // Categorize Documents (Timeline Removed)
   const categories = {
     'Certificates': userDocuments.filter(d => d.documentType?.includes('Certificate') || d.documentType?.includes('Degree') || d.documentType?.includes('License')),
-    '201 Files': userDocuments.filter(d => d.documentType === '201 File'),
+    '201 Files': userDocuments.filter(d => ['201 File', 'Identification'].includes(d.documentType)),
     'Evaluations': userDocuments.filter(d => d.documentType === 'Faculty Evaluation'),
     'Contracts': userDocuments.filter(d => ['Contract', 'Letter of Intent', 'Non-Renewal Contract'].includes(d.documentType))
   };
