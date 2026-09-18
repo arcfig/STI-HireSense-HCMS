@@ -218,7 +218,7 @@ const FacultyDirectory = () => {
 
     categories = {
       'Certificates': selectedFaculty.documents.filter(d => d.documentType?.includes('Certificate') || d.documentType?.includes('Degree') || d.documentType?.includes('License')),
-      '201 Files': selectedFaculty.documents.filter(d => d.documentType === '201 File'),
+      '201 Files': selectedFaculty.documents.filter(d => ['201 File', 'Identification'].includes(d.documentType)),
       'Evaluations': selectedFaculty.documents.filter(d => d.documentType === 'Faculty Evaluation'),
       'Contracts': selectedFaculty.documents.filter(d => ['Contract', 'Letter of Intent', 'Non-Renewal Contract'].includes(d.documentType))
     };
@@ -584,7 +584,7 @@ const FacultyDirectory = () => {
         </div>,
         document.body
       )}
-      {previewDoc.isOpen && (
+      {previewDoc.isOpen && createPortal(
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content bg-dark border-0 shadow-lg">
@@ -610,7 +610,8 @@ const FacultyDirectory = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

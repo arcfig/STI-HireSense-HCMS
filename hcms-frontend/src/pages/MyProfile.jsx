@@ -185,7 +185,7 @@ function MyProfile({ user }) {
                 <input type="text" className="form-control" name="phoneNumber" value={profileData.phoneNumber} onChange={handleProfileChange} placeholder="e.g., 09123456789" />
               </div>
 
-              <button type="submit" className="btn btn-outline-primary btn-sm w-100 fw-bold shadow-sm mb-4">
+              <button type="submit" className="btn btn-primary btn-sm w-100 fw-bold shadow-sm mb-4">
                 <i className="bi bi-save me-2"></i> Save Profile Details
               </button>
             </form>
@@ -226,7 +226,7 @@ function MyProfile({ user }) {
                   <input type={showPasswords ? "text" : "password"} className="form-control focus-ring" name="confirmPassword" value={passwords.confirmPassword} onChange={handlePasswordChange} required minLength="6" />
                 </div>
               </div>
-              <button type="submit" className="btn btn-primary fw-bold px-4 shadow-sm" disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}>Update Password</button>
+              <button type="submit" className="btn btn-primary w-100 fw-bold px-4 shadow-sm" disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}>Update Password</button>
             </form>
           </div>
 
@@ -238,7 +238,7 @@ function MyProfile({ user }) {
             <button 
               onClick={handleRegisterBiometrics} 
               disabled={isRegisteringBiometrics}
-              className="btn btn-outline-primary fw-bold px-4 shadow-sm"
+              className="btn btn-primary w-100 fw-bold px-4 shadow-sm"
             >
               {isRegisteringBiometrics ? (
                 <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Registering...</>

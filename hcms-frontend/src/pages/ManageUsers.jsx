@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react';
 function ManageUsers({ currentUser }) {
   const [users, setUsers] = useState([]);
   const [message, setMessage] = useState({ text: '', type: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [filterRole, setFilterRole] = useState('');
 
   // 1. Retrieve the token once at the top
   const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
@@ -126,6 +129,24 @@ function ManageUsers({ currentUser }) {
     return 'bg-secondary';
   };
 
+  // Processed users (Filter + Sort)
+  const processedUsers = users
+    .filter(user => {
+      if (filterRole && user.role !== filterRole) return false;
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        user.name?.toLowerCase().includes(query) ||
+        user.username?.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
+      if (sortBy === 'username') return (a.username || '').localeCompare(b.username || '');
+      if (sortBy === 'role') return (a.role || '').localeCompare(b.role || '');
+      return 0;
+    });
+
   return (
     <div>
       <div className="mb-4 flex-shrink-0">
@@ -142,6 +163,50 @@ function ManageUsers({ currentUser }) {
         </div>
       )}
 
+      {/* --- SEARCH & FILTER BAR --- */}
+      <div className="card shadow-sm border-0 mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+        <div className="card-body p-3">
+          <div className="row g-2">
+            <div className="col-md-5">
+              <div className="input-group">
+                <span className="input-group-text border-end-0" style={{ backgroundColor: 'transparent' }}><i className="bi bi-search text-muted"></i></span>
+                <input 
+                  type="text" 
+                  className="form-control border-start-0 ps-0" 
+                  placeholder="Search by name or username..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="col-md-4">
+              <select 
+                className="form-select"
+                value={filterRole}
+                onChange={(e) => setFilterRole(e.target.value)}
+              >
+                <option value="">All Access Roles</option>
+                <option value="faculty">Faculty</option>
+                <option value="academic_head">Academic Head</option>
+                <option value="program_head">Program Head</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div className="col-md-3">
+              <select 
+                className="form-select"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="name">Sort by Name</option>
+                <option value="username">Sort by Username</option>
+                <option value="role">Sort by Role</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0">
@@ -154,7 +219,7 @@ function ManageUsers({ currentUser }) {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
+              {processedUsers.map((user) => (
                 <tr key={user._id}>
                   <td className="px-4 py-3 fw-bold" style={{ color: 'var(--text-main)' }}>{user.name}</td>
                   <td className="px-4 py-3 text-muted">{user.username}</td>
@@ -197,7 +262,7 @@ function ManageUsers({ currentUser }) {
                 </tr>
               ))}
               
-              {users.length === 0 && (
+              {processedUsers.length === 0 && (
                 <tr>
                   <td colSpan="4" className="text-center py-4 text-muted">No active user accounts found.</td>
                 </tr>
