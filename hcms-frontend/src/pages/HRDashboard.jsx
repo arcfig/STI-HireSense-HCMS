@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
+import ExportFacultyStatsButton from '../components/ExportFacultyStatsButton';
 
 function HRDashboard({ user }) {
   const [pendingFaculty, setPendingFaculty] = useState([]);
@@ -209,11 +210,14 @@ function HRDashboard({ user }) {
 
   return (
     <div className="position-relative">
-      <div className="mb-4 flex-shrink-0">
-        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
-          <i className="bi bi-shield-lock-fill text-primary me-2"></i>HR Management Dashboard
-        </h2>
-        <p className="text-muted mb-0">Review, edit, and verify pending faculty documents.</p>
+      <div className="mb-4 flex-shrink-0 d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+          <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+            <i className="bi bi-shield-lock-fill text-primary me-2"></i>HR Management Dashboard
+          </h2>
+          <p className="text-muted mb-0">Review, edit, and verify pending faculty documents.</p>
+        </div>
+        <ExportFacultyStatsButton user={user} />
       </div>
 
       {/* --- SEARCH & FILTER BAR --- */}
