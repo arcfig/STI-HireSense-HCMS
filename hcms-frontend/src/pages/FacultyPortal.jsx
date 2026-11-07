@@ -245,14 +245,14 @@ const FacultyPortal = ({ user }) => {
                             className="list-group-item p-3 d-flex justify-content-between align-items-center gap-3"
                             style={{ backgroundColor: 'var(--surface-neutral)', borderColor: 'var(--border-neutral)' }}
                           >
-                            <div className="min-w-0">
-                              <p className="fw-bold mb-0 text-truncate" style={{ color: 'var(--text-main)' }}>
+                            <div className="flex-grow-1 min-w-0">
+                              <p className="fw-bold mb-1 text-break" style={{ color: 'var(--text-main)', lineHeight: '1.3' }}>
                                 {doc.documentTitle || 'Untitled Document'}
                               </p>
-                              <small className="text-muted d-block">
+                              <small className="text-muted d-block text-break">
                                 {doc.firstName} {doc.lastName} • {doc.department || 'Unassigned'}
                               </small>
-                              <div className="d-flex align-items-center gap-2 mt-1">
+                              <div className="d-flex flex-wrap align-items-center gap-2 mt-1">
                                 <span className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontSize: '0.7rem' }}>
                                   {doc.documentType}
                                 </span>
@@ -443,15 +443,15 @@ const FacultyPortal = ({ user }) => {
                     {recentActivity.length > 0 ? (
                       <ul className="list-group list-group-flush">
                         {recentActivity.map((activity, idx) => (
-                          <li key={idx} className="list-group-item px-4 py-3 d-flex align-items-center border-bottom" style={{ backgroundColor: 'var(--surface-neutral)', borderColor: 'var(--border-neutral)' }}>
-                            <div className="p-2 me-3 rounded-circle d-flex align-items-center justify-content-center" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', width: '36px', height: '36px' }}>
+                          <li key={idx} className="list-group-item px-3 px-md-4 py-3 d-flex align-items-center border-bottom" style={{ backgroundColor: 'var(--surface-neutral)', borderColor: 'var(--border-neutral)' }}>
+                            <div className="p-2 me-3 rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', width: '36px', height: '36px' }}>
                               <i className="bi bi-check-lg" style={{ color: 'var(--brand-primary-bg)' }}></i>
                             </div>
-                            <div className="flex-grow-1">
-                              <p className="mb-0 fw-semibold fs-6" style={{ color: 'var(--text-main)', lineHeight: '1.2' }}>{activity.documentTitle}</p>
-                              <small className="text-muted">{activity.firstName} {activity.lastName} • {activity.documentType}</small>
+                            <div className="flex-grow-1 min-w-0">
+                              <p className="mb-0 fw-semibold fs-6 text-break" style={{ color: 'var(--text-main)', lineHeight: '1.25' }}>{activity.documentTitle}</p>
+                              <small className="text-muted text-break">{activity.firstName} {activity.lastName} • {activity.documentType}</small>
                             </div>
-                            <small className="text-muted fw-medium text-end ms-2">
+                            <small className="text-muted fw-medium text-end ms-2 flex-shrink-0 text-nowrap">
                               {new Date(activity.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                             </small>
                           </li>

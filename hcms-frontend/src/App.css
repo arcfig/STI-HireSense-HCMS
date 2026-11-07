@@ -103,7 +103,8 @@ body {
 .sidebar {
   background-color: #1e293b;
   /* Dark navy color */
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   color: white;
   padding-top: 20px;
 }
@@ -560,6 +561,10 @@ h6.text-muted,
 }
 
 /* 17. Responsive App Shell & Mobile Off-Canvas Sidebar */
+.min-w-0 {
+  min-width: 0 !important;
+}
+
 .app-shell {
   height: 100vh;
   height: 100dvh;
@@ -570,6 +575,15 @@ h6.text-muted,
 .layout-main-wrapper {
   flex: 1 1 0%;
   min-width: 0;
+  height: 100%;
+  min-height: 0;
+}
+
+#main-scroll-container {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .layout-sidebar-wrapper {
@@ -587,6 +601,32 @@ h6.text-muted,
   width: 82px;
 }
 
+.sidebar-nav-scroll {
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-wrap: nowrap !important;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-bottom: calc(2.25rem + env(safe-area-inset-bottom, 0px));
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+}
+
 .layout-sidebar-backdrop {
   display: none;
 }
@@ -602,6 +642,30 @@ h6.text-muted,
 }
 
 @media (max-width: 991.98px) {
+  /* Use native browser scrolling on mobile so dynamic URL/bottom toolbars adapt cleanly */
+  .app-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    height: auto;
+    overflow: visible;
+  }
+
+  .layout-main-wrapper {
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .layout-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+  }
+
+  #main-scroll-container {
+    overflow: visible;
+    padding-bottom: calc(2.5rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
   .layout-sidebar-wrapper,
   .layout-sidebar-wrapper.sidebar-expanded,
   .layout-sidebar-wrapper.sidebar-collapsed {
@@ -609,6 +673,8 @@ h6.text-muted,
     top: 0;
     left: 0;
     bottom: 0;
+    height: 100%;
+    max-height: 100dvh;
     width: 260px;
     max-width: 82vw;
     z-index: 1050;

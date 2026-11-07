@@ -54,7 +54,7 @@ function Sidebar({ user, isSidebarOpen, setIsSidebarOpen, isMobile, onCloseMobil
     <div className="sidebar shadow" style={{ width: '100%', height: '100%', backgroundColor: '#091f0c', color: 'white', paddingTop: '0', display: 'flex', flexDirection: 'column', zIndex: 1000, whiteSpace: 'nowrap', overflow: 'hidden', userSelect: 'none' }}>
       <div 
         className="sidebar-brand fw-bold fs-5 d-flex align-items-center justify-content-between" 
-        style={{ borderBottom: '1px solid var(--border-subtle)', color: 'white', height: '70px', minHeight: '70px', boxSizing: 'border-box', marginBottom: '1rem', flexShrink: 0, cursor: 'pointer', padding: '0 26px' }}
+        style={{ borderBottom: '1px solid var(--border-subtle)', color: 'white', height: '70px', minHeight: '70px', boxSizing: 'border-box', marginBottom: '0.5rem', flexShrink: 0, cursor: 'pointer', padding: '0 26px' }}
         onClick={handleHeaderToggle}
         title={isMobile ? "Close Menu" : "Toggle Sidebar"}
       >
@@ -67,7 +67,7 @@ function Sidebar({ user, isSidebarOpen, setIsSidebarOpen, isMobile, onCloseMobil
         )}
       </div>
       
-      <div className="nav flex-column flex-grow-1 overflow-x-hidden overflow-y-auto pb-3" onClick={handleNavClick}>
+      <nav className="nav flex-column sidebar-nav-scroll" onClick={handleNavClick}>
         <Link to="/" draggable="false" className={getLinkClass('/')} style={getLinkStyle('/')}>
           <i className="bi bi-house-door-fill" style={iconStyle}></i>
           <span style={textStyle}>Home Dashboard</span>
@@ -123,7 +123,7 @@ function Sidebar({ user, isSidebarOpen, setIsSidebarOpen, isMobile, onCloseMobil
             </Link>
           </>
         )}
-      </div>
+      </nav>
     </div>
   );
 }
@@ -154,12 +154,19 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
   }, []);
 
   useEffect(() => {
-    if (!isMobileMenuOpen) return;
+    if (!isMobileMenuOpen) {
+      document.body.style.overflow = '';
+      return undefined;
+    }
+    document.body.style.overflow = 'hidden';
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') setIsMobileMenuOpen(false);
     };
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = '';
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isMobileMenuOpen]);
 
   const [notifications, setNotifications] = useState([]);
@@ -279,7 +286,7 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
         
         <div className="d-flex flex-column layout-main-wrapper">
           
-          <div className="shadow-sm px-3 px-md-4 d-flex justify-content-between justify-content-lg-end align-items-center z-3" style={{ height: '70px', minHeight: '70px', backgroundColor: 'var(--surface-neutral)', borderBottom: '1px solid var(--border-subtle)', boxSizing: 'border-box', flexShrink: 0 }}>
+          <div className="layout-topbar shadow-sm px-3 px-md-4 d-flex justify-content-between justify-content-lg-end align-items-center z-3" style={{ height: '70px', minHeight: '70px', backgroundColor: 'var(--surface-neutral)', borderBottom: '1px solid var(--border-subtle)', boxSizing: 'border-box', flexShrink: 0 }}>
             
             {/* --- MOBILE MENU TOGGLE & BRAND --- */}
             <div className="d-flex d-lg-none align-items-center gap-2 me-2 overflow-hidden">
@@ -380,7 +387,7 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
             </div>
           </div>
 
-          <div className="p-3 p-md-4 overflow-y-auto overflow-x-hidden flex-grow-1 h-100" id="main-scroll-container">
+          <div className="p-3 p-md-4 flex-grow-1" id="main-scroll-container">
             <ErrorBoundary>
               <Routes>
                 <Route path="/" element={<FacultyPortal user={user} />} />
