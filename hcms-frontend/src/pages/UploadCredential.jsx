@@ -130,7 +130,7 @@ const UploadCredential = () => {
       } else {
         setStatusMessage({ type: 'danger', text: data.error || data.message || 'Failed to extract data.' });
       }
-    } catch (error) {
+    } catch {
       setStatusMessage({ type: 'danger', text: 'Network error during extraction.' });
     } finally {
       setIsExtracting(false);
@@ -185,7 +185,7 @@ const UploadCredential = () => {
       } else {
         setStatusMessage({ type: 'danger', text: data.error || data.message || 'Error saving to database.' });
       }
-    } catch (error) {
+    } catch {
       setStatusMessage({ type: 'danger', text: 'Network error during submission.' });
     } finally {
       setIsSubmitting(false);
@@ -238,9 +238,9 @@ const UploadCredential = () => {
             <div className="card border mb-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
               <div className="card-body py-3">
                 <h6 className="fw-bold mb-3">File Upload & AI Extraction</h6>
-                <div className="input-group mb-1">
+                <div className="d-flex flex-column flex-sm-row gap-2 mb-2">
                   <input type="file" className="form-control" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
-                  <button type="button" className="btn btn-primary" onClick={handleAutoFill} disabled={!selectedFile || isExtracting}>
+                  <button type="button" className="btn btn-primary text-nowrap flex-shrink-0" onClick={handleAutoFill} disabled={!selectedFile || isExtracting}>
                     {isExtracting ? 'Extracting...' : 'Auto-Fill Details'}
                   </button>
                 </div>
@@ -254,16 +254,16 @@ const UploadCredential = () => {
                 </div>
 
                 <div className="alert alert-warning py-2 px-3 small border-0 shadow-sm d-flex align-items-center" role="alert">
-                  <i className="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+                  <i className="bi bi-exclamation-triangle-fill me-2 fs-5 flex-shrink-0"></i>
                   <span><strong>Disclaimer:</strong> Auto-extracted details might have mistakes. Please check and verify that all details are correct before submitting.</span>
                 </div>
 
-                <div className="row">
-                  <div className="col-md-6 mb-2">
+                <div className="row g-2 mb-2">
+                  <div className="col-md-6">
                     <label className="form-label text-muted small">First Name</label>
                     <input type="text" className="form-control" name="firstName" value={formData.firstName} onChange={handleInputChange} required />
                   </div>
-                  <div className="col-md-6 mb-2">
+                  <div className="col-md-6">
                     <label className="form-label text-muted small">Last Name</label>
                     <input type="text" className="form-control" name="lastName" value={formData.lastName} onChange={handleInputChange} required />
                   </div>
@@ -287,7 +287,7 @@ const UploadCredential = () => {
                     <label className="form-label text-muted">Issuing Institution</label>
                     <input type="text" className="form-control" name="issuingInstitution" value={formData.issuingInstitution} onChange={handleInputChange} />
                   </div>
-                  <div className="row mb-3">
+                  <div className="row g-3 mb-3">
                     <div className="col-md-6">
                       <label className="form-label text-muted">Date Received</label>
                       <input type="date" className="form-control" name="dateReceived" value={formData.dateReceived} onChange={handleInputChange} />
@@ -311,7 +311,7 @@ const UploadCredential = () => {
               {/* 2. FACULTY EVALUATION FIELDS */}
               {formData.documentType === 'Faculty Evaluation' && (
                 <>
-                  <div className="row mb-3">
+                  <div className="row g-3 mb-3">
                     <div className="col-md-6">
                       <label className="form-label text-muted">Academic Year</label>
                       <input type="text" className="form-control" name="academicYear" placeholder="e.g., SY 2025-2026" value={formData.academicYear} onChange={handleInputChange} />
@@ -334,7 +334,7 @@ const UploadCredential = () => {
 
               {/* 3. CONTRACT FIELDS */}
               {formData.documentType === 'Contract' && (
-                <div className="row mb-3">
+                <div className="row g-3 mb-3">
                   <div className="col-md-6">
                     <label className="form-label text-muted">Start of Contract</label>
                     <input type="date" className="form-control" name="contractStart" value={formData.contractStart} onChange={handleInputChange} />
@@ -367,7 +367,7 @@ const UploadCredential = () => {
 
               {/* 6. IDENTIFICATION FIELDS */}
               {formData.documentType === 'Identification' && (
-                <div className="row mb-3">
+                <div className="row g-3 mb-3">
                   <div className="col-md-4">
                     <label className="form-label text-muted">ID Type</label>
                     <select className="form-select border-primary" name="idType" value={formData.idType} onChange={handleInputChange}>
@@ -453,7 +453,7 @@ const UploadCredential = () => {
                   </object>
                 )}
               </div>
-              <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
+              <div className="modal-footer border-top border-secondary px-3 px-md-4 py-3 bg-dark d-flex flex-wrap justify-content-between gap-2">
                 <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">Fallback: Open in New Tab</a>
                 <button type="button" className="btn btn-primary fw-bold" onClick={() => setIsPreviewOpen(false)}>Close Viewer</button>
               </div>

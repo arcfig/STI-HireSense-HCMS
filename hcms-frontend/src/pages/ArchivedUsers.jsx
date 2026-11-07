@@ -61,7 +61,7 @@ const ArchivedUsers = () => {
   if (loading) return <div className="container mt-5 text-center">Loading Archived Data...</div>;
 
   return (
-    <div className="d-flex flex-column h-100">
+    <div className="d-flex flex-column">
       <div className="mb-4 flex-shrink-0">
         <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
           <i className="bi bi-archive-fill text-primary me-2"></i>Archived Accounts
@@ -69,43 +69,75 @@ const ArchivedUsers = () => {
         <p className="text-muted mb-0">Review and restore disabled system accounts.</p>
       </div>
 
-      <div className="card shadow-sm border-0">
+      {/* Mobile Archived Cards (< 768px) — Restore button always visible */}
+      <div className="d-md-none d-flex flex-column gap-3 pb-3">
+        {archivedUsers.length === 0 ? (
+          <div className="card shadow-sm border-0 rounded-3 text-center py-4 text-muted" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+            No archived accounts found.
+          </div>
+        ) : (
+          archivedUsers.map((user) => (
+            <div key={user._id} className="mobile-review-card">
+              <div className="p-3 d-flex justify-content-between align-items-start gap-2">
+                <div className="min-w-0">
+                  <p className="fw-bold mb-0 text-truncate" style={{ color: 'var(--text-main)' }}>{user.name}</p>
+                  <small className="text-muted">@{user.username}</small>
+                </div>
+                <span className="badge bg-secondary text-uppercase flex-shrink-0">{user.role}</span>
+              </div>
+              <div className="mobile-review-card__actions">
+                <button
+                  className="btn btn-success btn-sm fw-bold shadow-sm w-100"
+                  onClick={() => handleRestore(user._id)}
+                >
+                  <i className="bi bi-arrow-counterclockwise me-1"></i> Restore Account
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Archived Table (>= 768px) */}
+      <div className="card shadow-sm border-0 d-none d-md-block">
         <div className="card-body p-0">
-          <table className="table table-hover mb-0">
-            <thead className="text-secondary" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
-              <tr>
-                <th className="px-4 py-3">Full Name</th>
-                <th className="py-3">System Username</th>
-                <th className="py-3">Access Role</th>
-                <th className="text-end px-4 py-3">Administrative Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {archivedUsers.length === 0 ? (
+          <div className="table-responsive">
+            <table className="table table-hover mb-0">
+              <thead className="text-secondary" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
                 <tr>
-                  <td colSpan="4" className="text-center py-4 text-muted">No archived accounts found.</td>
+                  <th className="px-4 py-3 text-nowrap">Full Name</th>
+                  <th className="py-3 text-nowrap">System Username</th>
+                  <th className="py-3 text-nowrap">Access Role</th>
+                  <th className="text-end px-4 py-3 text-nowrap">Administrative Actions</th>
                 </tr>
-              ) : (
-                archivedUsers.map((user) => (
-                  <tr key={user._id} className="align-middle text-muted opacity-75">
-                    <td className="px-4 py-3 fw-bold" style={{ color: 'var(--text-main)' }}>{user.name}</td>
-                    <td className="py-3">{user.username}</td>
-                    <td className="py-3">
-                      <span className="badge bg-secondary text-uppercase">{user.role}</span>
-                    </td>
-                    <td className="text-end px-4 py-3">
-                      <button 
-                        className="btn btn-success btn-sm fw-bold shadow-sm"
-                        onClick={() => handleRestore(user._id)}
-                      >
-                        <i className="bi bi-arrow-counterclockwise me-1"></i> Restore Account
-                      </button>
-                    </td>
+              </thead>
+              <tbody>
+                {archivedUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan="4" className="text-center py-4 text-muted">No archived accounts found.</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  archivedUsers.map((user) => (
+                    <tr key={user._id} className="align-middle text-muted opacity-75">
+                      <td className="px-4 py-3 fw-bold text-nowrap" style={{ color: 'var(--text-main)' }}>{user.name}</td>
+                      <td className="py-3 text-nowrap">{user.username}</td>
+                      <td className="py-3 text-nowrap">
+                        <span className="badge bg-secondary text-uppercase">{user.role}</span>
+                      </td>
+                      <td className="text-end px-4 py-3 text-nowrap">
+                        <button 
+                          className="btn btn-success btn-sm fw-bold shadow-sm"
+                          onClick={() => handleRestore(user._id)}
+                        >
+                          <i className="bi bi-arrow-counterclockwise me-1"></i> Restore Account
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

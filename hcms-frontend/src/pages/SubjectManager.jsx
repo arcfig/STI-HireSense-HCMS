@@ -132,7 +132,7 @@ const SubjectManager = () => {
                                 {hierarchy[dept][prog].map((sub, subIndex) => (
                                   <button 
                                     key={subIndex}
-                                    className={`list-group-item list-group-item-action px-5 py-3 ${selectedSubject?.courseCode === sub.courseCode ? 'active bg-primary text-white border-primary' : ''}`}
+                                    className={`list-group-item list-group-item-action ps-4 ps-md-5 pe-3 py-3 ${selectedSubject?.courseCode === sub.courseCode ? 'active bg-primary text-white border-primary' : ''}`}
                                     onClick={() => handleSubjectClick(sub)}
                                   >
                                     <div className="d-flex w-100 justify-content-between">
@@ -198,15 +198,15 @@ const SubjectManager = () => {
                       {eligibleFaculty.map((faculty, index) => (
                         <div className="col-12" key={index}>
                           <div className="card shadow-sm hover-lift" style={{ backgroundColor: 'var(--bg-neutral-light)', border: '1px solid var(--border-subtle)' }}>
-                            <div className="card-body d-flex align-items-center">
-                              <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold me-3" style={{ width: '45px', height: '45px' }}>
+                            <div className="card-body d-flex flex-wrap align-items-center gap-2">
+                              <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold me-2 flex-shrink-0" style={{ width: '45px', height: '45px' }}>
                                 {faculty.firstName?.[0] || ''}{faculty.lastName?.[0] || ''}
                               </div>
-                              <div className="flex-grow-1">
+                              <div className="flex-grow-1 min-w-0">
                                 <h6 className="fw-bold mb-0">{faculty.firstName} {faculty.lastName}</h6>
                                 <p className="text-muted small mb-0">{faculty.department}</p>
                               </div>
-                              <div>
+                              <div className="flex-shrink-0">
                                 <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-3 py-2">
                                   Approved
                                 </span>

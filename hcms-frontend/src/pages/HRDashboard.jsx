@@ -45,8 +45,18 @@ function HRDashboard({ user }) {
   const [submittingIds, setSubmittingIds] = useState(() => new Set());
   // Track the most recently updated verification card so useEffect can auto-scroll it into view
   const [scrollTarget, setScrollTarget] = useState(null);
+  const [isMobileView, setIsMobileView] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 767.98px)').matches : false
+  );
   const resultCardRefs = useRef({});
   const reportModalRef = useRef(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767.98px)');
+    const handleViewportChange = (e) => setIsMobileView(e.matches);
+    mq.addEventListener('change', handleViewportChange);
+    return () => mq.removeEventListener('change', handleViewportChange);
+  }, []);
 
   // 1. Retrieve the token once at the top so all functions can use it
   const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser'));
@@ -109,7 +119,7 @@ function HRDashboard({ user }) {
           next.delete(completedId);
           return next;
         });
-        setScrollTarget({ id: completedId, timestamp: Date.now() });
+        setScrollTarget(prev => ({ id: completedId, seq: (prev?.seq || 0) + 1 }));
       }
     };
     window.addEventListener('verificationCompleted', handleVerificationComplete);
@@ -131,7 +141,7 @@ function HRDashboard({ user }) {
     }, 80);
 
     const clearHighlightTimer = setTimeout(() => {
-      setScrollTarget(prev => (prev?.timestamp === scrollTarget.timestamp ? null : prev));
+      setScrollTarget(prev => (prev?.seq === scrollTarget.seq ? null : prev));
     }, 3400);
 
     return () => {
@@ -233,7 +243,7 @@ function HRDashboard({ user }) {
     setPendingFaculty(prev =>
       prev.map(f => (f._id === id ? { ...f, verificationStatus: 'verifying' } : f))
     );
-    setScrollTarget({ id, timestamp: Date.now() });
+    setScrollTarget(prev => ({ id, seq: (prev?.seq || 0) + 1 }));
 
     toast(`AI Verification started for ${faculty.firstName}. Please wait while we analyze the certificate.`, { icon: '⏳' });
 
@@ -317,6 +327,114 @@ function HRDashboard({ user }) {
     } catch {
       toast.error('Server error during edit.');
     }
+  };
+
+  const filteredPending = pendingFaculty.filter((faculty) => {
+    const matchesSearch =
+      `${faculty.firstName} ${faculty.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (faculty.documentTitle || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType =
+      filterType === '' ||
+      faculty.documentType === filterType ||
+      (filterType === '201 File' && faculty.documentType === 'Identification');
+    const matchesDept = filterDept === '' || (faculty.department || 'Unassigned') === filterDept;
+    return matchesSearch && matchesType && matchesDept;
+  });
+
+  const renderVerificationStatus = (faculty) => {
+    const isVerifying = submittingIds.has(faculty._id) || faculty.verificationStatus === 'verifying';
+    const statusMeta = VERIFICATION_STATUS_META[faculty.verificationStatus];
+    const isHighlighted = scrollTarget?.id === faculty._id;
+
+    return (
+      <div
+        ref={(el) => {
+          if (el) {
+            resultCardRefs.current[faculty._id] = el;
+          } else {
+            delete resultCardRefs.current[faculty._id];
+          }
+        }}
+        tabIndex={-1}
+        aria-live="polite"
+        className={isVerifying || statusMeta ? 'mb-2' : ''}
+      >
+        {isVerifying && (
+          <div className="verification-processing-banner" role="status">
+            <span className="spinner-border spinner-border-sm flex-shrink-0" aria-hidden="true"></span>
+            <div>
+              <div className="fw-bold">AI Verifying Certificate...</div>
+              <div className="small fw-normal opacity-75">Please wait, do not click again</div>
+            </div>
+          </div>
+        )}
+
+        {!isVerifying && statusMeta && (
+          <button
+            type="button"
+            onClick={() => setReportDoc(faculty)}
+            className={`verification-result-card ${statusMeta.variantClass} ${isHighlighted ? 'verification-result-card--highlight' : ''}`}
+            aria-label={`${statusMeta.label} for ${faculty.firstName} ${faculty.lastName}. Click here to view full AI verification details.`}
+          >
+            <span className="verification-result-card__status">
+              <i className={`bi ${statusMeta.icon}`} aria-hidden="true"></i>
+              <span>{statusMeta.label}</span>
+            </span>
+            <span className="verification-result-card__cta">
+              <span className="verification-result-card__cta-text">
+                Click here to view full details
+              </span>
+              <i className="bi bi-chevron-right verification-result-card__chevron" aria-hidden="true"></i>
+            </span>
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const renderVerifyButton = (faculty) => {
+    const isVerifying = submittingIds.has(faculty._id) || faculty.verificationStatus === 'verifying';
+    const isAlreadyVerified = faculty.verificationStatus === 'verified' || faculty.verificationStatus === 'flagged';
+    const isVerifyDisabled = isVerifying || isAlreadyVerified;
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleVerify(faculty)}
+        className="btn btn-sm btn-outline-primary btn-verify-trigger fw-bold px-2 w-100 d-inline-flex align-items-center justify-content-center gap-1"
+        title={
+          isVerifying
+            ? 'Verification is currently in progress'
+            : isAlreadyVerified
+              ? 'Verification completed — click the result card above to view full details'
+              : 'Run AI certificate verification'
+        }
+        disabled={isVerifyDisabled}
+        aria-busy={isVerifying}
+      >
+        {isVerifying ? (
+          <>
+            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span>Verifying...</span>
+          </>
+        ) : isAlreadyVerified ? (
+          <>
+            <i className="bi bi-check2-circle" aria-hidden="true"></i>
+            <span>Verified</span>
+          </>
+        ) : faculty.verificationStatus === 'failed' ? (
+          <>
+            <i className="bi bi-arrow-clockwise" aria-hidden="true"></i>
+            <span>Retry Verify</span>
+          </>
+        ) : (
+          <>
+            <i className="bi bi-search" aria-hidden="true"></i>
+            <span>Verify</span>
+          </>
+        )}
+      </button>
+    );
   };
 
   return (
@@ -487,9 +605,106 @@ function HRDashboard({ user }) {
           </form>
         </div>
 
+      ) : isMobileView ? (
+
+        /* MOBILE REVIEW CARDS (< 768px) — All admin actions visible without horizontal scrolling */
+        <div className="d-flex flex-column gap-3 pb-3">
+          {filteredPending.map((faculty) => (
+            <div key={faculty._id} className="mobile-review-card">
+              <div className="p-3">
+                <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
+                  <div>
+                    <p className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>
+                      {faculty.firstName} {faculty.lastName}
+                    </p>
+                    <small className="text-muted">{faculty.department || 'Unassigned'}</small>
+                  </div>
+                  <span
+                    className="badge border flex-shrink-0"
+                    style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}
+                  >
+                    {faculty.documentType || 'Other'}
+                  </span>
+                </div>
+
+                <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 py-2 my-2 border-top border-bottom" style={{ borderColor: 'var(--border-subtle)' }}>
+                  <p className="fw-bold text-primary mb-0">{faculty.documentTitle || 'Untitled'}</p>
+                  {faculty.documentUrl && (
+                    <button
+                      type="button"
+                      onClick={() => openViewer(faculty.documentUrl, faculty.documentTitle || 'Document Preview')}
+                      className="btn btn-sm btn-light border text-primary fw-semibold"
+                    >
+                      <i className="bi bi-eye me-1"></i> View File
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <small className="text-muted fw-semibold text-uppercase d-block mb-1" style={{ fontSize: '0.7rem', letterSpacing: '0.04em' }}>
+                    AI Extracted Details
+                  </small>
+                  {faculty.tags && faculty.tags.length > 0 ? (
+                    <div className="d-flex flex-wrap gap-1">
+                      {faculty.tags.map((tag, index) => (
+                        <span key={index} className="badge border text-wrap text-start" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-muted small fst-italic">No tags extracted</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mobile-review-card__actions">
+                {renderVerificationStatus(faculty)}
+
+                <div className="d-flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => startEditing(faculty)}
+                    className="btn btn-sm btn-outline-primary fw-bold px-2 w-100"
+                  >
+                    <i className="bi bi-pencil-square me-1"></i> Edit Data
+                  </button>
+                  {faculty.documentType === 'Certificate' && renderVerifyButton(faculty)}
+                </div>
+
+                <div className="d-flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openConfirmDialog(faculty._id, 'approved')}
+                    className="btn btn-sm btn-success fw-bold px-3 shadow-sm w-50"
+                  >
+                    <i className="bi bi-check-lg me-1"></i> Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openConfirmDialog(faculty._id, 'rejected')}
+                    className="btn btn-sm btn-outline-danger fw-bold px-3 w-50"
+                  >
+                    <i className="bi bi-x-lg me-1"></i> Reject
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {filteredPending.length === 0 && (
+            <div className="card shadow-sm border-0 rounded-3 text-center py-5" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+              <i className="bi bi-inbox fs-1 text-muted opacity-50 mb-3 d-block"></i>
+              <h5 className="text-muted mb-0">
+                {pendingFaculty.length === 0 ? 'No pending approvals.' : 'No matching pending documents.'}
+              </h5>
+            </div>
+          )}
+        </div>
+
       ) : (
 
-        /* THE DATA TABLE */
+        /* THE DATA TABLE (>= 768px Desktop) */
         <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
           <div className="table-responsive">
             <table className="table table-hover align-middle mb-0">
@@ -502,169 +717,82 @@ function HRDashboard({ user }) {
                 </tr>
               </thead>
               <tbody>
-                {pendingFaculty
-                  .filter(faculty => {
-                    const matchesSearch =
-                      `${faculty.firstName} ${faculty.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      (faculty.documentTitle || '').toLowerCase().includes(searchTerm.toLowerCase());
-                    const matchesType = filterType === '' || faculty.documentType === filterType || (filterType === '201 File' && faculty.documentType === 'Identification');
-                    const matchesDept = filterDept === '' || (faculty.department || 'Unassigned') === filterDept;
-                    return matchesSearch && matchesType && matchesDept;
-                  })
-                  .map((faculty) => {
-                    const isVerifying = submittingIds.has(faculty._id) || faculty.verificationStatus === 'verifying';
-                    const isAlreadyVerified = faculty.verificationStatus === 'verified' || faculty.verificationStatus === 'flagged';
-                    const isVerifyDisabled = isVerifying || isAlreadyVerified;
-                    const statusMeta = VERIFICATION_STATUS_META[faculty.verificationStatus];
-                    const isHighlighted = scrollTarget?.id === faculty._id;
+                {filteredPending.map((faculty) => (
+                  <tr key={faculty._id}>
+                    <td className="px-4 py-3">
+                      <p className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{faculty.firstName} {faculty.lastName}</p>
+                      <small className="text-muted">{faculty.department}</small>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="fw-bold text-primary mb-0">{faculty.documentTitle || 'Untitled'}</p>
+                      <span className="badge border mt-1" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{faculty.documentType || 'Other'}</span>
+                      {faculty.documentUrl && (
+                        <button
+                          type="button"
+                          onClick={() => openViewer(faculty.documentUrl, faculty.documentTitle || 'Document Preview')}
+                          className="btn btn-link p-0 text-decoration-none small d-block mt-2 text-start"
+                        >
+                          <i className="bi bi-link-45deg"></i> View File
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {faculty.tags && faculty.tags.length > 0 ? (
+                        <div className="d-flex flex-wrap gap-1">
+                          {faculty.tags.map((tag, index) => (
+                            <span key={index} className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted small fst-italic">No tags extracted</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {/* --- VERIFICATION RESULT / PROCESSING CONTAINER --- */}
+                      {renderVerificationStatus(faculty)}
 
-                    return (
-                      <tr key={faculty._id}>
-                        <td className="px-4 py-3">
-                          <p className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{faculty.firstName} {faculty.lastName}</p>
-                          <small className="text-muted">{faculty.department}</small>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="fw-bold text-primary mb-0">{faculty.documentTitle || 'Untitled'}</p>
-                          <span className="badge border mt-1" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{faculty.documentType || 'Other'}</span>
-                          {faculty.documentUrl && (
-                            <button
-                              type="button"
-                              onClick={() => openViewer(faculty.documentUrl, faculty.documentTitle || 'Document Preview')}
-                              className="btn btn-link p-0 text-decoration-none small d-block mt-2 text-start"
-                            >
-                              <i className="bi bi-link-45deg"></i> View File
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          {faculty.tags && faculty.tags.length > 0 ? (
-                            <div className="d-flex flex-wrap gap-1">
-                              {faculty.tags.map((tag, index) => (
-                                <span key={index} className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted small fst-italic">No tags extracted</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {/* --- VERIFICATION RESULT / PROCESSING CONTAINER --- */}
-                          <div
-                            ref={el => { resultCardRefs.current[faculty._id] = el; }}
-                            tabIndex={-1}
-                            aria-live="polite"
-                            className="mb-2"
-                          >
-                            {isVerifying && (
-                              <div className="verification-processing-banner" role="status">
-                                <span className="spinner-border spinner-border-sm flex-shrink-0" aria-hidden="true"></span>
-                                <div>
-                                  <div className="fw-bold">AI Verifying Certificate...</div>
-                                  <div className="small fw-normal opacity-75">Please wait, do not click again</div>
-                                </div>
-                              </div>
-                            )}
+                      {/* --- PRIMARY ROW ACTIONS --- */}
+                      <div className="d-flex justify-content-center gap-2 mb-2">
+                        <button
+                          type="button"
+                          onClick={() => startEditing(faculty)}
+                          className="btn btn-sm btn-outline-primary fw-bold px-2 w-100"
+                        >
+                          <i className="bi bi-pencil-square me-1"></i> Edit Data
+                        </button>
+                        {faculty.documentType === 'Certificate' && renderVerifyButton(faculty)}
+                      </div>
 
-                            {!isVerifying && statusMeta && (
-                              <button
-                                type="button"
-                                onClick={() => setReportDoc(faculty)}
-                                className={`verification-result-card ${statusMeta.variantClass} ${isHighlighted ? 'verification-result-card--highlight' : ''}`}
-                                aria-label={`${statusMeta.label} for ${faculty.firstName} ${faculty.lastName}. Click here to view full AI verification details.`}
-                              >
-                                <span className="verification-result-card__status">
-                                  <i className={`bi ${statusMeta.icon}`} aria-hidden="true"></i>
-                                  <span>{statusMeta.label}</span>
-                                </span>
-                                <span className="verification-result-card__cta">
-                                  <span className="verification-result-card__cta-text">
-                                    Click here to view full details
-                                  </span>
-                                  <i className="bi bi-chevron-right verification-result-card__chevron" aria-hidden="true"></i>
-                                </span>
-                              </button>
-                            )}
-                          </div>
-
-                          {/* --- PRIMARY ROW ACTIONS --- */}
-                          <div className="d-flex justify-content-center gap-2 mb-2">
-                            <button
-                              type="button"
-                              onClick={() => startEditing(faculty)}
-                              className="btn btn-sm btn-outline-primary fw-bold px-2 w-100"
-                            >
-                              <i className="bi bi-pencil-square me-1"></i> Edit Data
-                            </button>
-                            {faculty.documentType === 'Certificate' && (
-                              <button
-                                type="button"
-                                onClick={() => handleVerify(faculty)}
-                                className="btn btn-sm btn-outline-primary btn-verify-trigger fw-bold px-2 w-100 d-inline-flex align-items-center justify-content-center gap-1"
-                                title={
-                                  isVerifying
-                                    ? 'Verification is currently in progress'
-                                    : isAlreadyVerified
-                                      ? 'Verification completed — click the result card above to view full details'
-                                      : 'Run AI certificate verification'
-                                }
-                                disabled={isVerifyDisabled}
-                                aria-busy={isVerifying}
-                              >
-                                {isVerifying ? (
-                                  <>
-                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                    <span>Verifying...</span>
-                                  </>
-                                ) : isAlreadyVerified ? (
-                                  <>
-                                    <i className="bi bi-check2-circle" aria-hidden="true"></i>
-                                    <span>Verified</span>
-                                  </>
-                                ) : faculty.verificationStatus === 'failed' ? (
-                                  <>
-                                    <i className="bi bi-arrow-clockwise" aria-hidden="true"></i>
-                                    <span>Retry Verify</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <i className="bi bi-search" aria-hidden="true"></i>
-                                    <span>Verify</span>
-                                  </>
-                                )}
-                              </button>
-                            )}
-                          </div>
-
-                          <div className="d-flex justify-content-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => openConfirmDialog(faculty._id, 'approved')}
-                              className="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm w-50"
-                              title="Approve Document"
-                            >
-                              <i className="bi bi-check-lg"></i>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openConfirmDialog(faculty._id, 'rejected')}
-                              className="btn btn-sm btn-outline-danger fw-bold px-3 w-50"
-                              title="Reject Document"
-                            >
-                              <i className="bi bi-x-lg"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                      <div className="d-flex justify-content-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openConfirmDialog(faculty._id, 'approved')}
+                          className="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm w-50"
+                          title="Approve Document"
+                        >
+                          <i className="bi bi-check-lg"></i>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openConfirmDialog(faculty._id, 'rejected')}
+                          className="btn btn-sm btn-outline-danger fw-bold px-3 w-50"
+                          title="Reject Document"
+                        >
+                          <i className="bi bi-x-lg"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-          {pendingFaculty.length === 0 && (
+          {filteredPending.length === 0 && (
             <div className="text-center py-5">
               <i className="bi bi-inbox fs-1 text-muted opacity-50 mb-3 d-block"></i>
-              <h5 className="text-muted">No pending approvals.</h5>
+              <h5 className="text-muted">
+                {pendingFaculty.length === 0 ? 'No pending approvals.' : 'No matching pending documents.'}
+              </h5>
             </div>
           )}
         </div>
@@ -675,8 +803,8 @@ function HRDashboard({ user }) {
         <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.9)', zIndex: 1060 }}>
           <div className="modal-dialog modal-xl modal-dialog-centered">
             <div className="modal-content bg-dark border-0 shadow-lg">
-              <div className="modal-header border-bottom border-secondary px-4 py-3">
-                <h5 className="modal-title text-white"><i className="bi bi-file-earmark-text text-primary me-2"></i>{previewDoc.title}</h5>
+              <div className="modal-header border-bottom border-secondary px-3 px-md-4 py-3">
+                <h5 className="modal-title text-white text-truncate pe-2"><i className="bi bi-file-earmark-text text-primary me-2"></i>{previewDoc.title}</h5>
                 <button type="button" className="btn-close btn-close-white" onClick={closeViewer}></button>
               </div>
               <div className="modal-body p-0 d-flex justify-content-center align-items-center" style={{ height: '75vh', backgroundColor: '#1e1e1e', overflow: 'hidden' }}>
@@ -684,14 +812,14 @@ function HRDashboard({ user }) {
                   <img src={previewDoc.url} alt="Document Preview" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
                 ) : (
                   <object data={previewDoc.url} type="application/pdf" width="100%" height="100%" style={{ border: 'none' }}>
-                    <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white">
+                    <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white p-3 text-center">
                       <p className="mb-3">Browser native PDF viewer is disabled.</p>
                       <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light">Open Externally</a>
                     </div>
                   </object>
                 )}
               </div>
-              <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
+              <div className="modal-footer border-top border-secondary px-3 px-md-4 py-3 bg-dark d-flex flex-wrap justify-content-between gap-2">
                 <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">Fallback: Open in New Tab</a>
                 <button type="button" className="btn btn-primary fw-bold" onClick={closeViewer}>Close Viewer</button>
               </div>
@@ -710,17 +838,17 @@ function HRDashboard({ user }) {
           <div
             ref={reportModalRef}
             tabIndex={-1}
-            className="modal-dialog modal-lg modal-dialog-centered"
+            className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
           >
             <div className="modal-content border-0 shadow-lg" style={{ backgroundColor: 'var(--surface-neutral)' }}>
               <div className="modal-header bg-dark text-white">
-                <h5 className="modal-title fw-bold text-white">
+                <h5 className="modal-title fw-bold text-white fs-6 fs-md-5">
                   <i className="bi bi-shield-check me-2"></i>
                   AI Verification Report — {reportDoc.firstName} {reportDoc.lastName}
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setReportDoc(null)}></button>
               </div>
-              <div className="modal-body p-4">
+              <div className="modal-body p-3 p-md-4">
                 <div className="alert alert-warning mb-4 shadow-sm" role="alert">
                   <h6 className="alert-heading fw-bold mb-1"><i className="bi bi-exclamation-triangle-fill me-2"></i>Disclaimer</h6>
                   <p className="mb-0 small">

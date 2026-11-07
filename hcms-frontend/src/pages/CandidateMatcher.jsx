@@ -37,7 +37,7 @@ function CandidateMatcher() {
                   // Fallback for unexpected object structures
                   userToken = rawStorageValue; 
               }
-          } catch (e) {
+          } catch {
               // If JSON.parse fails, the data is already a raw unformatted string
               userToken = rawStorageValue;
           }
@@ -71,7 +71,7 @@ function CandidateMatcher() {
       } else {
         setError(data.error || 'Failed to fetch matches.');
       }
-    } catch (err) {
+    } catch {
       setError('Server error during AI matching.');
     } finally {
       setIsSearching(false);
@@ -117,11 +117,11 @@ function CandidateMatcher() {
           <div className="row g-4">
             {matches.map((faculty, index) => (
               <div className="col-12" key={faculty._id}>
-                <div className={`card shadow-sm border-0 rounded-3 p-4 ${index === 0 ? 'border-start border-5 border-success bg-success bg-opacity-10' : ''}`} style={{ backgroundColor: index !== 0 ? 'var(--surface-neutral)' : undefined }}>
-                  <div className="row align-items-center">
+                <div className={`card shadow-sm border-0 rounded-3 p-3 p-md-4 ${index === 0 ? 'border-start border-5 border-success bg-success bg-opacity-10' : ''}`} style={{ backgroundColor: index !== 0 ? 'var(--surface-neutral)' : undefined }}>
+                  <div className="row g-3 align-items-center">
                     
                     {/* Rank & Score */}
-                    <div className="col-md-2 text-center border-end">
+                    <div className="col-md-2 text-center pb-3 pb-md-0 matcher-score-col">
                       <h1 className={`display-4 fw-bold mb-0 ${index === 0 ? 'text-success' : 'text-primary'}`}>
                         {faculty.matchScore}%
                       </h1>
@@ -129,7 +129,7 @@ function CandidateMatcher() {
                     </div>
 
                     {/* Faculty Details */}
-                    <div className="col-md-4 ps-4">
+                    <div className="col-md-4 ps-md-4">
                       {/* CHANGED: We now just use faculty.name since it's aggregated */}
                       <h4 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>{faculty.name}</h4>
                       <p className="text-muted fw-semibold mb-2">{faculty.department}</p>
@@ -147,7 +147,7 @@ function CandidateMatcher() {
                     </div>
 
                     {/* AI Reasoning */}
-                    <div className="col-md-6 border-start ps-4">
+                    <div className="col-md-6 pt-3 pt-md-0 ps-md-4 matcher-reason-col">
                       <p className="fw-bold text-secondary mb-1 small text-uppercase"><i className="bi bi-cpu-fill me-1"></i> AI Analysis</p>
                       <p className="mb-0 fst-italic" style={{ color: 'var(--text-main)' }}>"{faculty.matchReason}"</p>
                     </div>

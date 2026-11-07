@@ -369,9 +369,87 @@ function AuditLogs({ currentUser }) {
         </div>
       </div>
 
-      {/* --- AUDIT TABLE --- */}
+      {/* --- AUDIT TABLE & MOBILE CARDS --- */}
       <div className="card shadow-sm border-0 rounded-3 overflow-hidden" style={{ backgroundColor: 'var(--surface-neutral)' }}>
-        <div className="table-responsive">
+        {/* Mobile Forensic Log List (< 768px) — Zero horizontal scrolling */}
+        <div className="d-md-none">
+          {loading && logs.length === 0 ? (
+            <div className="text-center py-5 text-muted">
+              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              Loading audit trail...
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-5 text-muted px-3">
+              No audit records match the current filters.
+            </div>
+          ) : (
+            <ul className="list-group list-group-flush">
+              {logs.map((entry) => {
+                const isCurrentUser =
+                  currentUser?.username && entry.username === currentUser.username;
+
+                return (
+                  <li
+                    key={entry._id}
+                    className="list-group-item p-3"
+                    style={{ backgroundColor: 'var(--surface-neutral)', borderColor: 'var(--border-subtle)' }}
+                  >
+                    <div className="d-flex justify-content-between align-items-start gap-2 mb-2">
+                      <div className="min-w-0">
+                        <div className="fw-bold d-flex flex-wrap align-items-center gap-1" style={{ color: 'var(--text-main)' }}>
+                          <span>{entry.actorName}</span>
+                          {isCurrentUser && (
+                            <span className="badge bg-success-subtle text-success border border-success-subtle" style={{ fontSize: '0.65rem' }}>
+                              YOU
+                            </span>
+                          )}
+                          {entry.isDeletedUser && (
+                            <span className="badge bg-secondary" style={{ fontSize: '0.65rem' }}>
+                              DELETED
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-muted small">@{entry.username}</div>
+                      </div>
+                      <div className="d-flex align-items-center gap-1 flex-shrink-0">
+                        <span className={`badge ${getActionBadgeClass(entry.actionType)} px-2 py-1`}>
+                          {entry.actionType}
+                        </span>
+                        <span className={`badge ${getStatusBadgeClass(entry.statusCode)} font-monospace`}>
+                          {entry.statusCode || '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded mb-2" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
+                      <span className="badge bg-dark-subtle text-body me-2 font-monospace">
+                        {entry.httpMethod}
+                      </span>
+                      <code className="small" style={{ color: 'var(--text-main)', wordBreak: 'break-all' }}>
+                        {entry.targetResource}
+                      </code>
+                    </div>
+
+                    <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 small text-muted">
+                      <span className={`badge ${getRoleBadgeClass(entry.userRole)} px-2 py-1`}>
+                        {formatRoleText(entry.userRole)}
+                      </span>
+                      <span className="font-monospace" style={{ fontSize: '0.75rem' }}>
+                        {entry.ipAddress}
+                      </span>
+                      <span style={{ fontSize: '0.75rem' }}>
+                        {entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '—'}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        {/* Desktop Forensic Table (>= 768px) */}
+        <div className="table-responsive d-none d-md-block">
           <table className="table table-hover align-middle mb-0">
             <thead className="text-secondary" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
               <tr>

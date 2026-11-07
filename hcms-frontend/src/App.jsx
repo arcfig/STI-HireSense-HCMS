@@ -22,9 +22,10 @@ const isAdmin = (role) => role === 'admin';
 const isHeadOrAdmin = (role) => ['admin', 'academic_head', 'program_head'].includes(role);
 const hasPortfolioAccess = (role) => role !== 'admin'; 
 
-function Sidebar({ user, onLogout, isSidebarOpen, setIsSidebarOpen }) {
+function Sidebar({ user, isSidebarOpen, setIsSidebarOpen, isMobile, onCloseMobileMenu }) {
   const location = useLocation();
   const role = user?.role || 'faculty';
+  const showLabels = isMobile ? true : isSidebarOpen;
 
   const getLinkStyle = (path) => location.pathname === path 
     ? { backgroundColor: '#1b5e20', color: 'white', textDecoration: 'none' } 
@@ -33,21 +34,40 @@ function Sidebar({ user, onLogout, isSidebarOpen, setIsSidebarOpen }) {
   const getLinkClass = (path) => `nav-link px-3 py-2 my-1 mx-2 rounded d-flex align-items-center ${location.pathname === path ? 'active' : 'text-light'}`;
 
   const iconStyle = { fontSize: '1.2rem', minWidth: '30px', textAlign: 'center' };
-  const textStyle = { opacity: isSidebarOpen ? 1 : 0, transition: 'opacity 0.2s', marginLeft: '12px', visibility: isSidebarOpen ? 'visible' : 'hidden' };
+  const textStyle = { opacity: showLabels ? 1 : 0, transition: 'opacity 0.2s', marginLeft: '12px', visibility: showLabels ? 'visible' : 'hidden' };
+
+  const handleHeaderToggle = () => {
+    if (isMobile) {
+      onCloseMobileMenu();
+    } else {
+      setIsSidebarOpen(!isSidebarOpen);
+    }
+  };
+
+  const handleNavClick = (e) => {
+    if (isMobile && e.target.closest('a')) {
+      onCloseMobileMenu();
+    }
+  };
 
   return (
     <div className="sidebar shadow" style={{ width: '100%', height: '100%', backgroundColor: '#091f0c', color: 'white', paddingTop: '0', display: 'flex', flexDirection: 'column', zIndex: 1000, whiteSpace: 'nowrap', overflow: 'hidden', userSelect: 'none' }}>
       <div 
-        className="sidebar-brand fw-bold fs-5 d-flex align-items-center" 
+        className="sidebar-brand fw-bold fs-5 d-flex align-items-center justify-content-between" 
         style={{ borderBottom: '1px solid var(--border-subtle)', color: 'white', height: '70px', minHeight: '70px', boxSizing: 'border-box', marginBottom: '1rem', flexShrink: 0, cursor: 'pointer', padding: '0 26px' }}
-        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-        title="Toggle Sidebar"
+        onClick={handleHeaderToggle}
+        title={isMobile ? "Close Menu" : "Toggle Sidebar"}
       >
-        <i className="bi bi-list fs-3" style={{ minWidth: '30px', textAlign: 'center' }}></i>
-        <span style={{ opacity: isSidebarOpen ? 1 : 0, transition: 'opacity 0.2s', marginLeft: '12px', visibility: isSidebarOpen ? 'visible' : 'hidden' }}>{APP_NAME}</span>
+        <div className="d-flex align-items-center overflow-hidden">
+          <i className="bi bi-list fs-3" style={{ minWidth: '30px', textAlign: 'center' }}></i>
+          <span style={{ opacity: showLabels ? 1 : 0, transition: 'opacity 0.2s', marginLeft: '12px', visibility: showLabels ? 'visible' : 'hidden' }}>{APP_NAME}</span>
+        </div>
+        {isMobile && (
+          <i className="bi bi-x-lg fs-6 text-white-50"></i>
+        )}
       </div>
       
-      <div className="nav flex-column flex-grow-1 overflow-x-hidden overflow-y-auto">
+      <div className="nav flex-column flex-grow-1 overflow-x-hidden overflow-y-auto pb-3" onClick={handleNavClick}>
         <Link to="/" draggable="false" className={getLinkClass('/')} style={getLinkStyle('/')}>
           <i className="bi bi-house-door-fill" style={iconStyle}></i>
           <span style={textStyle}>Home Dashboard</span>
@@ -67,7 +87,7 @@ function Sidebar({ user, onLogout, isSidebarOpen, setIsSidebarOpen }) {
         {isHeadOrAdmin(role) && (
           <>
             <hr className="mx-2 my-3" style={{ borderColor: 'rgba(255,255,255,0.2)' }} />
-            <div className="px-4 mb-2 small fw-bold text-uppercase" style={{ color: 'rgba(255,255,255,0.7)', opacity: isSidebarOpen ? 1 : 0, transition: 'opacity 0.2s', visibility: isSidebarOpen ? 'visible' : 'hidden' }}>Management Tools</div>
+            <div className="px-4 mb-2 small fw-bold text-uppercase" style={{ color: 'rgba(255,255,255,0.7)', opacity: showLabels ? 1 : 0, transition: 'opacity 0.2s', visibility: showLabels ? 'visible' : 'hidden' }}>Management Tools</div>
             <Link to="/directory" draggable="false" className={getLinkClass('/directory')} style={getLinkStyle('/directory')}>
               <i className="bi bi-people-fill" style={iconStyle}></i>
               <span style={textStyle}>Faculty Directory</span>
@@ -112,10 +132,35 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     return localStorage.getItem('hireSenseSidebarOpen') !== 'false'; // default true
   });
+  const [isMobile, setIsMobile] = useState(() => {
+    return typeof window !== 'undefined' && window.matchMedia('(max-width: 991.98px)').matches;
+  });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('hireSenseSidebarOpen', isSidebarOpen);
   }, [isSidebarOpen]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 991.98px)');
+    const handleViewportChange = (e) => {
+      setIsMobile(e.matches);
+      if (!e.matches) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    mq.addEventListener('change', handleViewportChange);
+    return () => mq.removeEventListener('change', handleViewportChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileMenuOpen]);
 
   const [notifications, setNotifications] = useState([]);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -201,10 +246,6 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
     }
   };
 
-  const handleLogout = () => {
-    setUser(null);
-  };
-
   if (!user) {
     return (
       <div className="w-100 h-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
@@ -216,111 +257,130 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
   return (
     <>
       <Toaster position="top-right" />
-      <div className="d-flex app-background" style={{ height: '100vh', overflow: 'hidden', position: 'relative' }}>
+      <div className="d-flex app-background app-shell">
         
+        <div
+          className={`layout-sidebar-backdrop ${isMobileMenuOpen ? 'show' : ''}`}
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+
         <div 
-          style={{
-            width: isSidebarOpen ? '260px' : '82px',
-            flexShrink: 0,
-            transition: 'width 0.3s ease',
-            backgroundColor: '#091f0c',
-            overflow: 'hidden'
-          }}
+          className={`layout-sidebar-wrapper ${isSidebarOpen ? 'sidebar-expanded' : 'sidebar-collapsed'} ${isMobileMenuOpen ? 'mobile-drawer-open' : ''}`}
         >
           <Sidebar 
             user={user} 
-            onLogout={handleLogout} 
             isSidebarOpen={isSidebarOpen} 
-            setIsSidebarOpen={setIsSidebarOpen} 
+            setIsSidebarOpen={setIsSidebarOpen}
+            isMobile={isMobile}
+            onCloseMobileMenu={() => setIsMobileMenuOpen(false)}
           />
         </div>
         
-        <div className="d-flex flex-column flex-grow-1" style={{ width: `calc(100% - ${isSidebarOpen ? '260px' : '82px'})`, transition: 'width 0.3s ease' }}>
+        <div className="d-flex flex-column layout-main-wrapper">
           
-          <div className="shadow-sm px-4 d-flex justify-content-end align-items-center z-3" style={{ height: '70px', minHeight: '70px', backgroundColor: 'var(--surface-neutral)', borderBottom: '1px solid var(--border-subtle)', boxSizing: 'border-box', flexShrink: 0 }}>
+          <div className="shadow-sm px-3 px-md-4 d-flex justify-content-between justify-content-lg-end align-items-center z-3" style={{ height: '70px', minHeight: '70px', backgroundColor: 'var(--surface-neutral)', borderBottom: '1px solid var(--border-subtle)', boxSizing: 'border-box', flexShrink: 0 }}>
             
-            {/* --- THEME TOGGLE --- */}
-            <button 
-              className="btn btn-sm rounded-circle p-2 position-relative shadow-sm me-3"
-              onClick={toggleTheme}
-              title="Toggle Light/Dark Mode"
-              style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', border: '1px solid var(--border-subtle)', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            >
-              {theme === 'light' ? <i className="bi bi-moon-fill"></i> : <i className="bi bi-sun-fill text-warning"></i>}
-            </button>
-
-            {/* --- NOTIFICATION BELL --- */}
-            <div className="position-relative me-4" ref={notifRef}>
-              <button 
-                className="btn btn-sm rounded-circle p-2 position-relative shadow-sm"
-                onClick={handleNotifClick}
-                style={{ backgroundColor: 'var(--bg-neutral-light)', border: '1px solid var(--border-subtle)', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            {/* --- MOBILE MENU TOGGLE & BRAND --- */}
+            <div className="d-flex d-lg-none align-items-center gap-2 me-2 overflow-hidden">
+              <button
+                type="button"
+                className="btn btn-sm rounded-circle p-2 shadow-sm flex-shrink-0"
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open navigation menu"
+                style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', border: '1px solid var(--border-subtle)', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                <i className="bi bi-bell-fill fs-5" style={{ color: 'var(--text-main)' }}></i>
-                {unreadCount > 0 && (
-                  <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light" style={{ fontSize: '0.65rem' }}>
-                    {unreadCount}
-                  </span>
-                )}
+                <i className="bi bi-list fs-5"></i>
               </button>
-              
-              {/* Dropdown for notifications */}
-              {showNotifs && (
-                <div className="position-absolute shadow-lg rounded p-3" style={{ top: '50px', right: '0', width: '300px', zIndex: 1060, backgroundColor: 'var(--surface-neutral)', border: '1px solid var(--border-neutral)', color: 'var(--text-main)' }}>
-                  <h6 className="fw-bold mb-3 border-bottom pb-2" style={{ borderColor: 'var(--border-subtle) !important' }}>Notifications</h6>
-                  {notifications.length === 0 ? (
-                    <p className="text-muted small mb-0">No new notifications</p>
-                  ) : (
-                    notifications.slice(0, 5).map((notif, idx) => {
-                      // Determine color based on message content
-                      let variant = 'primary';
-                      let icon = 'bi-info-circle-fill';
-                      if (notif.message.includes('VERIFIED')) {
-                        variant = 'success';
-                        icon = 'bi-check-circle-fill';
-                      } else if (notif.message.includes('FLAGGED')) {
-                        variant = 'danger';
-                        icon = 'bi-exclamation-triangle-fill';
-                      } else if (notif.message.includes('NEEDS REVIEW')) {
-                        variant = 'warning';
-                        icon = 'bi-exclamation-circle-fill';
-                      }
-
-                      // Safely grab the date
-                      const notifDate = notif.timestamp || notif.date || notif.createdAt;
-
-                      return (
-                        <div key={idx} className="mb-2 p-2 rounded border-start border-4" style={{ borderLeftColor: `var(--bs-${variant}) !important`, backgroundColor: `rgba(var(--bs-${variant}-rgb), 0.05)` }}>
-                          <div className="d-flex align-items-start">
-                            <i className={`bi ${icon} text-${variant} me-2 mt-1`} style={{ fontSize: '0.85rem' }}></i>
-                            <div>
-                              <p className="small mb-1 fw-semibold" style={{ color: 'var(--text-main)', lineHeight: '1.3' }}>{notif.message}</p>
-                              <small className="text-muted" style={{ fontSize: '0.7rem' }}>
-                                {notifDate ? new Date(notifDate).toLocaleString() : 'Just now'}
-                              </small>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
+              <span className="fw-bold text-truncate" style={{ color: 'var(--text-main)', fontSize: '1.05rem' }}>
+                {APP_NAME}
+              </span>
             </div>
 
-            {/* --- USER PROFILE --- */}
-            <Link to="/profile" className="d-flex align-items-center text-decoration-none" style={{ cursor: 'pointer' }}>
-              <div className="text-end me-3">
-                <div className="fw-bold" style={{ color: 'var(--brand-glow-accent)', fontSize: '0.95rem', lineHeight: '1.2' }}>{user.name}</div>
-                <div className="text-uppercase" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>{user.role.replace('_', ' ')}</div>
+            <div className="d-flex align-items-center ms-auto">
+              {/* --- THEME TOGGLE --- */}
+              <button 
+                className="btn btn-sm rounded-circle p-2 position-relative shadow-sm me-2 me-sm-3 flex-shrink-0"
+                onClick={toggleTheme}
+                title="Toggle Light/Dark Mode"
+                style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', border: '1px solid var(--border-subtle)', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                {theme === 'light' ? <i className="bi bi-moon-fill"></i> : <i className="bi bi-sun-fill text-warning"></i>}
+              </button>
+
+              {/* --- NOTIFICATION BELL --- */}
+              <div className="position-relative me-2 me-sm-4 flex-shrink-0" ref={notifRef}>
+                <button 
+                  className="btn btn-sm rounded-circle p-2 position-relative shadow-sm"
+                  onClick={handleNotifClick}
+                  style={{ backgroundColor: 'var(--bg-neutral-light)', border: '1px solid var(--border-subtle)', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <i className="bi bi-bell-fill fs-5" style={{ color: 'var(--text-main)' }}></i>
+                  {unreadCount > 0 && (
+                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light" style={{ fontSize: '0.65rem' }}>
+                      {unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Dropdown for notifications */}
+                {showNotifs && (
+                  <div className="notif-dropdown shadow-lg rounded p-3" style={{ backgroundColor: 'var(--surface-neutral)', border: '1px solid var(--border-neutral)', color: 'var(--text-main)' }}>
+                    <h6 className="fw-bold mb-3 border-bottom pb-2" style={{ borderColor: 'var(--border-subtle) !important' }}>Notifications</h6>
+                    {notifications.length === 0 ? (
+                      <p className="text-muted small mb-0">No new notifications</p>
+                    ) : (
+                      notifications.slice(0, 5).map((notif, idx) => {
+                        // Determine color based on message content
+                        let variant = 'primary';
+                        let icon = 'bi-info-circle-fill';
+                        if (notif.message.includes('VERIFIED')) {
+                          variant = 'success';
+                          icon = 'bi-check-circle-fill';
+                        } else if (notif.message.includes('FLAGGED')) {
+                          variant = 'danger';
+                          icon = 'bi-exclamation-triangle-fill';
+                        } else if (notif.message.includes('NEEDS REVIEW')) {
+                          variant = 'warning';
+                          icon = 'bi-exclamation-circle-fill';
+                        }
+
+                        // Safely grab the date
+                        const notifDate = notif.timestamp || notif.date || notif.createdAt;
+
+                        return (
+                          <div key={idx} className="mb-2 p-2 rounded border-start border-4" style={{ borderLeftColor: `var(--bs-${variant}) !important`, backgroundColor: `rgba(var(--bs-${variant}-rgb), 0.05)` }}>
+                            <div className="d-flex align-items-start">
+                              <i className={`bi ${icon} text-${variant} me-2 mt-1`} style={{ fontSize: '0.85rem' }}></i>
+                              <div>
+                                <p className="small mb-1 fw-semibold" style={{ color: 'var(--text-main)', lineHeight: '1.3' }}>{notif.message}</p>
+                                <small className="text-muted" style={{ fontSize: '0.7rem' }}>
+                                  {notifDate ? new Date(notifDate).toLocaleString() : 'Just now'}
+                                </small>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="rounded-circle d-flex align-items-center justify-content-center shadow-sm hover-lift" style={{ width: '45px', height: '45px', backgroundColor: 'var(--bg-neutral-tint)', border: '2px solid var(--border-subtle)' }}>
-                <i className="bi bi-person-circle fs-3 text-secondary"></i>
-              </div>
-            </Link>
+
+              {/* --- USER PROFILE --- */}
+              <Link to="/profile" className="d-flex align-items-center text-decoration-none flex-shrink-0" style={{ cursor: 'pointer' }}>
+                <div className="text-end me-3 d-none d-sm-block">
+                  <div className="fw-bold" style={{ color: 'var(--brand-glow-accent)', fontSize: '0.95rem', lineHeight: '1.2' }}>{user.name}</div>
+                  <div className="text-uppercase" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>{user.role.replace('_', ' ')}</div>
+                </div>
+                <div className="rounded-circle d-flex align-items-center justify-content-center shadow-sm hover-lift" style={{ width: '42px', height: '42px', backgroundColor: 'var(--bg-neutral-tint)', border: '2px solid var(--border-subtle)' }}>
+                  <i className="bi bi-person-circle fs-3 text-secondary"></i>
+                </div>
+              </Link>
+            </div>
           </div>
 
-          <div className="p-4 overflow-y-auto overflow-x-hidden flex-grow-1 h-100" id="main-scroll-container">
+          <div className="p-3 p-md-4 overflow-y-auto overflow-x-hidden flex-grow-1 h-100" id="main-scroll-container">
             <ErrorBoundary>
               <Routes>
                 <Route path="/" element={<FacultyPortal user={user} />} />
@@ -349,7 +409,7 @@ function App() {
   const [user, setUser] = useState(() => {
     const savedUser = sessionStorage.getItem('hireSenseUser');
     if (!savedUser || savedUser === "undefined") return null;
-    try { return JSON.parse(savedUser); } catch (error) { sessionStorage.removeItem('hireSenseUser'); return null; }
+    try { return JSON.parse(savedUser); } catch { sessionStorage.removeItem('hireSenseUser'); return null; }
   });
 
   const [theme, setTheme] = useState(() => {

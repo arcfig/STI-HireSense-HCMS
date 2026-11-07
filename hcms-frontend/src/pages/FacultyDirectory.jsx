@@ -238,7 +238,7 @@ const FacultyDirectory = () => {
   );
 
   return (
-    <div className="d-flex flex-column h-100">
+    <div className="d-flex flex-column pb-4">
 
       <div className="mb-4 flex-shrink-0">
         <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
@@ -289,7 +289,7 @@ const FacultyDirectory = () => {
           </div>
         </div>
 
-      <div className="flex-grow-1 overflow-y-auto overflow-x-hidden pe-2 px-1" style={{ minHeight: 0 }}>
+      <div className="px-1">
         {directoryData.length === 0 ? (
           <div className="text-center py-5">
             <h5 className="text-muted">No verified faculty profiles available.</h5>
@@ -374,21 +374,21 @@ const FacultyDirectory = () => {
           <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content border-0 shadow-lg my-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
 
-              <div className="modal-header px-4 py-3 sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-neutral)' }}>
-                <div className="d-flex align-items-center">
-                  <div className="rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}>
+              <div className="modal-header justify-content-between gap-2 px-3 px-md-4 py-3 sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-neutral)' }}>
+                <div className="d-flex align-items-center min-w-0">
+                  <div className="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0" style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}>
                     {getInitials(selectedFaculty.fullName)}
                   </div>
-                  <div>
-                    <h4 className="modal-title fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{selectedFaculty.fullName}</h4>
+                  <div className="min-w-0">
+                    <h4 className="modal-title fw-bold mb-0 fs-5 fs-md-4 text-truncate" style={{ color: 'var(--text-main)' }}>{selectedFaculty.fullName}</h4>
                     <p className="text-muted mb-0 small">Department: <strong>{selectedFaculty.department}</strong></p>
                   </div>
                 </div>
-                <button type="button" className="btn-close" onClick={closeProfile}></button>
+                <button type="button" className="btn-close flex-shrink-0 ms-auto align-self-start mt-1" onClick={closeProfile} aria-label="Close"></button>
               </div>
 
-              <div className="modal-body p-4">
-                <div className="row mb-4 align-items-stretch">
+              <div className="modal-body p-3 p-md-4">
+                <div className="row g-3 mb-4 align-items-stretch">
                   <div className="col-md-5">
                     <div className="card shadow-sm h-100 border-0">
                       <div className="card-body text-center d-flex flex-column justify-content-center">
@@ -426,9 +426,9 @@ const FacultyDirectory = () => {
                             </div>
                           </>
                         ) : (
-                          <div className="py-5 my-4 d-flex align-items-center justify-content-center flex-column flex-grow-1">
-                            <i className="bi bi-bar-chart text-muted opacity-25 display-1"></i>
-                            <p className="text-muted mt-3 fst-italic">No evaluation records available.</p>
+                          <div className="py-3 py-md-5 my-1 my-md-4 d-flex align-items-center justify-content-center flex-column flex-grow-1">
+                            <i className="bi bi-bar-chart text-muted opacity-25 fs-1"></i>
+                            <p className="text-muted mt-2 mb-0 fst-italic small">No evaluation records available.</p>
                           </div>
                         )}
                       </div>
@@ -465,8 +465,8 @@ const FacultyDirectory = () => {
                 </div>
 
                 <div className="card shadow-sm border-0 mb-4">
-                  <div className="card-body p-4">
-                    <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+                  <div className="card-body p-3 p-md-4">
+                    <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom pb-2 mb-3">
                       <h5 className="fw-bold text-secondary mb-0">
                         <i className="bi bi-card-checklist text-success me-2"></i>Approved Teaching Eligibilities
                       </h5>
@@ -497,11 +497,11 @@ const FacultyDirectory = () => {
                   </div>
                 </div>
 
-                <h5 className="text-secondary mb-3 mt-5"><i className="bi bi-folder2-open me-2"></i>Document Portfolio</h5>
+                <h5 className="text-secondary mb-3 mt-4"><i className="bi bi-folder2-open me-2"></i>Document Portfolio</h5>
 
-                <ul className="nav nav-tabs mb-4">
+                <ul className="nav nav-tabs mobile-tabs-scroll flex-nowrap overflow-x-auto text-nowrap mb-4">
                   {Object.keys(categories).map(tabName => (
-                    <li className="nav-item" key={tabName}>
+                    <li className="nav-item flex-shrink-0" key={tabName}>
                       <button
                         className={`nav-link ${activeTab === tabName ? 'shadow-sm' : 'border-0'}`}
                         onClick={() => setActiveTab(tabName)}
@@ -604,7 +604,7 @@ const FacultyDirectory = () => {
                   </object>
                 )}
               </div>
-              <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
+              <div className="modal-footer border-top border-secondary px-3 px-md-4 py-3 bg-dark d-flex flex-wrap justify-content-between gap-2">
                 <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">Fallback: Open in New Tab</a>
                 <button type="button" className="btn btn-primary fw-bold" onClick={closeViewer}>Close Viewer</button>
               </div>

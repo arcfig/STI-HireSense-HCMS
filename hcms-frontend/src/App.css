@@ -558,3 +558,163 @@ h6.text-muted,
   transform: none !important;
   box-shadow: none !important;
 }
+
+/* 17. Responsive App Shell & Mobile Off-Canvas Sidebar */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+}
+
+.layout-main-wrapper {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.layout-sidebar-wrapper {
+  flex-shrink: 0;
+  background-color: #091f0c;
+  overflow: hidden;
+  transition: width 0.3s ease;
+}
+
+.layout-sidebar-wrapper.sidebar-expanded {
+  width: 260px;
+}
+
+.layout-sidebar-wrapper.sidebar-collapsed {
+  width: 82px;
+}
+
+.layout-sidebar-backdrop {
+  display: none;
+}
+
+.notif-dropdown {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  width: 310px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 1060;
+}
+
+@media (max-width: 991.98px) {
+  .layout-sidebar-wrapper,
+  .layout-sidebar-wrapper.sidebar-expanded,
+  .layout-sidebar-wrapper.sidebar-collapsed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 260px;
+    max-width: 82vw;
+    z-index: 1050;
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.28s ease;
+  }
+
+  .layout-sidebar-wrapper.mobile-drawer-open {
+    transform: translateX(0);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
+  }
+
+  .layout-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 1045;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .layout-sidebar-backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .app-background::before {
+    background-size: 80vw;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .notif-dropdown {
+    position: fixed;
+    top: 76px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}
+
+/* 18. Mobile Review Cards, Scrollable Tabs & Dropdown Polish */
+.mobile-review-card {
+  background-color: var(--surface-neutral);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.mobile-review-card__actions {
+  background-color: var(--bg-neutral-light);
+  border-top: 1px solid var(--border-subtle);
+  padding: 0.875rem 1rem;
+}
+
+.mobile-tabs-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.mobile-tabs-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.mobile-tabs-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.35);
+  border-radius: 4px;
+}
+
+.export-format-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+  min-width: 260px;
+  z-index: 1055;
+}
+
+@media (max-width: 767.98px) {
+  .export-format-dropdown {
+    left: 0;
+    right: auto;
+    min-width: min(260px, calc(100vw - 32px));
+    max-width: calc(100vw - 24px);
+  }
+
+  .matcher-score-col {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .matcher-reason-col {
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+@media (min-width: 768px) {
+  .matcher-score-col {
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  .matcher-reason-col {
+    border-left: 1px solid var(--border-subtle);
+  }
+}

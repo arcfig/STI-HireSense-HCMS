@@ -78,7 +78,7 @@ function ManageUsers({ currentUser }) {
       } else {
         setMessage({ text: 'Failed to update role.', type: 'danger' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ text: 'Server error.', type: 'danger' });
     }
   };
@@ -111,7 +111,7 @@ function ManageUsers({ currentUser }) {
         const data = await response.json();
         setMessage({ text: data.error || 'Failed to archive user.', type: 'danger' });
       }
-    } catch (error) {
+    } catch {
       setMessage({ text: 'Server error.', type: 'danger' });
     }
   };
@@ -207,7 +207,57 @@ function ManageUsers({ currentUser }) {
         </div>
       </div>
 
-      <div className="card shadow-sm border-0 rounded-3 overflow-hidden">
+      {/* Mobile User Cards (< 768px) — Role selector & Archive button always visible */}
+      <div className="d-md-none d-flex flex-column gap-3 pb-3">
+        {processedUsers.map((user) => (
+          <div key={user._id} className="mobile-review-card">
+            <div className="p-3 d-flex justify-content-between align-items-start gap-2">
+              <div className="min-w-0">
+                <p className="fw-bold mb-0 text-truncate" style={{ color: 'var(--text-main)' }}>{user.name}</p>
+                <small className="text-muted">@{user.username}</small>
+              </div>
+              <span className={`badge ${getBadgeColor(user.role)} px-2 py-1 flex-shrink-0`}>
+                {formatRoleText(user.role)}
+              </span>
+            </div>
+            <div className="mobile-review-card__actions">
+              {user.username !== currentUser.username && user.username !== 'main.admin' ? (
+                <div className="d-flex align-items-center gap-2">
+                  <select
+                    className="form-select form-select-sm shadow-sm flex-grow-1"
+                    value={user.role}
+                    onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                    aria-label={`Access role for ${user.name}`}
+                  >
+                    <option value="faculty">Faculty</option>
+                    <option value="academic_head">Academic Head</option>
+                    <option value="program_head">Program Head</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                  <button
+                    onClick={() => handleArchive(user._id, user.username)}
+                    className="btn btn-sm btn-warning text-dark fw-bold px-3 shadow-sm flex-shrink-0"
+                    title="Archive Account"
+                  >
+                    <i className="bi bi-archive-fill me-1"></i> Archive
+                  </button>
+                </div>
+              ) : (
+                <span className="text-muted small fst-italic">System Protected</span>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {processedUsers.length === 0 && (
+          <div className="card shadow-sm border-0 rounded-3 text-center py-4 text-muted" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+            No active user accounts found.
+          </div>
+        )}
+      </div>
+
+      {/* Desktop User Table (>= 768px) */}
+      <div className="card shadow-sm border-0 rounded-3 overflow-hidden d-none d-md-block">
         <div className="table-responsive">
           <table className="table table-hover align-middle mb-0">
             <thead className="text-secondary" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>

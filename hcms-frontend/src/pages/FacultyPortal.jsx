@@ -155,12 +155,12 @@ const FacultyPortal = ({ user }) => {
             <circle cx="250" cy="50" r="100" fill="rgba(255, 255, 255, 0.1)" />
           </svg>
         </div>
-        <div className="card-body py-4 px-4 d-flex justify-content-between align-items-center position-relative z-1">
+        <div className="card-body py-3 py-md-4 px-3 px-md-4 d-flex flex-wrap justify-content-between align-items-center gap-2 position-relative z-1">
           <div>
-            <h3 className="fw-bold mb-1" style={{ color: 'var(--brand-primary-text)' }}>{getGreeting()}, {name}</h3>
-            <p className="mb-0 opacity-75 fw-medium" style={{ color: '#ffffff' }}>{currentDate} • {APP_NAME}</p>
+            <h3 className="fw-bold mb-1 fs-4 fs-md-3" style={{ color: 'var(--brand-primary-text)' }}>{getGreeting()}, {name}</h3>
+            <p className="mb-0 opacity-75 fw-medium small" style={{ color: '#ffffff' }}>{currentDate} • {APP_NAME}</p>
           </div>
-          <span className="badge bg-white px-3 py-2 shadow-sm" style={{ color: 'var(--brand-primary-bg)' }}>
+          <span className="badge bg-white px-3 py-2 shadow-sm text-uppercase" style={{ color: 'var(--brand-primary-bg)' }}>
             {role.replace('_', ' ')}
           </span>
         </div>
@@ -233,10 +233,44 @@ const FacultyPortal = ({ user }) => {
 
             {isHeadOrAdmin && (
               <>
-                <h5 className="text-secondary fw-bold mb-3 mt-5">Action Center</h5>
+                <h5 className="text-secondary fw-bold mb-3 mt-4 mt-lg-5">Action Center</h5>
                 {pendingDocs.length > 0 ? (
                   <div className="card border-0 shadow-sm rounded-3 overflow-hidden hover-lift transition-all">
-                    <div className="table-responsive">
+                    {/* Mobile Action List (< 768px) — Review button always visible */}
+                    <div className="d-md-none">
+                      <ul className="list-group list-group-flush">
+                        {pendingDocs.slice(0, 5).map(doc => (
+                          <li
+                            key={doc._id}
+                            className="list-group-item p-3 d-flex justify-content-between align-items-center gap-3"
+                            style={{ backgroundColor: 'var(--surface-neutral)', borderColor: 'var(--border-neutral)' }}
+                          >
+                            <div className="min-w-0">
+                              <p className="fw-bold mb-0 text-truncate" style={{ color: 'var(--text-main)' }}>
+                                {doc.documentTitle || 'Untitled Document'}
+                              </p>
+                              <small className="text-muted d-block">
+                                {doc.firstName} {doc.lastName} • {doc.department || 'Unassigned'}
+                              </small>
+                              <div className="d-flex align-items-center gap-2 mt-1">
+                                <span className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontSize: '0.7rem' }}>
+                                  {doc.documentType}
+                                </span>
+                                <small className="text-muted" style={{ fontSize: '0.75rem' }}>
+                                  {new Date(doc.createdAt).toLocaleDateString()}
+                                </small>
+                              </div>
+                            </div>
+                            <Link to="/hr-dashboard" className="btn btn-sm btn-outline-primary fw-bold px-3 flex-shrink-0">
+                              Review
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Desktop Action Table (>= 768px) */}
+                    <div className="table-responsive d-none d-md-block">
                       <table className="table table-hover align-middle mb-0">
                         <thead className="table-light">
                           <tr>

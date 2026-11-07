@@ -158,21 +158,21 @@ const MyPortfolio = ({ user }) => {
   };
 
   return (
-    <div className="d-flex flex-column h-100 pb-5">
+    <div className="d-flex flex-column pb-5">
       {/* Header Section */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <div>
           <h2 className="fw-bold text-primary mb-0">{facultyData.firstName} {facultyData.lastName}</h2>
           <p className="text-muted mb-0">Department: <strong>{facultyData.department}</strong></p>
         </div>
-        <div className="text-end text-muted small">
+        <div className="text-sm-end text-muted small">
           Report Generated<br/>
           <strong>{new Date().toLocaleDateString()}</strong>
         </div>
       </div>
 
       {/* Analytics & Skills Row */}
-      <div className="row mb-4 align-items-stretch">
+      <div className="row g-3 mb-4 align-items-stretch">
         
         {/* Left Column: Overall Rating (Dynamic Radar Chart) */}
         <div className="col-md-5">
@@ -215,9 +215,9 @@ const MyPortfolio = ({ user }) => {
                   </div>
                 </>
               ) : (
-                <div className="py-5 my-4">
-                  <i className="bi bi-bar-chart text-muted opacity-25 display-1"></i>
-                  <p className="text-muted mt-3 fst-italic">No evaluation records available.</p>
+                <div className="py-3 py-md-5 my-1 my-md-4">
+                  <i className="bi bi-bar-chart text-muted opacity-25 fs-1"></i>
+                  <p className="text-muted mt-2 mb-0 fst-italic small">No evaluation records available.</p>
                 </div>
               )}
             </div>
@@ -256,8 +256,8 @@ const MyPortfolio = ({ user }) => {
 
       {/* COURSE ELIGIBILITY SECTION (Truncated) */}
       <div className="card shadow-sm border-0 mb-4">
-        <div className="card-body p-4">
-          <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-3">
+        <div className="card-body p-3 p-md-4">
+          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom pb-2 mb-3">
             <h5 className="fw-bold text-secondary mb-0">
               <i className="bi bi-card-checklist text-success me-2"></i>Approved Teaching Eligibilities
             </h5>
@@ -293,14 +293,14 @@ const MyPortfolio = ({ user }) => {
       </div>
 
       {/* TABBED CREDENTIALS SECTION */}
-      <h5 className="text-secondary mb-3 mt-5"><i className="bi bi-folder2-open me-2"></i>Document Portfolio</h5>
+      <h5 className="text-secondary mb-3 mt-4"><i className="bi bi-folder2-open me-2"></i>Document Portfolio</h5>
       
-      <ul className="nav nav-tabs mb-4">
+      <ul className="nav nav-tabs mobile-tabs-scroll flex-nowrap overflow-x-auto text-nowrap mb-4">
         {Object.keys(categories).map(tabName => (
-          <li className="nav-item" key={tabName}>
+          <li className="nav-item flex-shrink-0" key={tabName}>
             <button 
               // Utilizing Bootstrap's native 'active' class combined with text utility classes for guaranteed contrast
-              className={`nav-link px-4 py-2 fw-bold ${activeTab === tabName ? 'active text-primary shadow-sm border-bottom-0' : 'text-secondary border-0 opacity-75'}`}
+              className={`nav-link px-3 px-md-4 py-2 fw-bold ${activeTab === tabName ? 'active text-primary shadow-sm border-bottom-0' : 'text-secondary border-0 opacity-75'}`}
               onClick={() => setActiveTab(tabName)}
               style={{ cursor: 'pointer' }}
             >
@@ -400,7 +400,7 @@ const MyPortfolio = ({ user }) => {
                 )}
               </div>
 
-              <div className="modal-footer border-top border-secondary px-4 py-3 bg-dark d-flex justify-content-between">
+              <div className="modal-footer border-top border-secondary px-3 px-md-4 py-3 bg-dark d-flex flex-wrap justify-content-between gap-2">
                 <a href={previewDoc.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline-light btn-sm">
                   <i className="bi bi-box-arrow-up-right me-2"></i>Fallback: Open in New Tab
                 </a>

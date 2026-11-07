@@ -260,10 +260,9 @@ function ExportFacultyStatsButton({ user, className = '' }) {
       {isMenuOpen && (
         <ul
           id="export-format-menu"
-          className="dropdown-menu dropdown-menu-end show shadow p-1"
+          className="dropdown-menu show shadow p-1 export-format-dropdown"
           role="menu"
           aria-labelledby="export-format-toggle"
-          style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, left: 'auto', minWidth: '260px', zIndex: 1055 }}
         >
           <li><h6 className="dropdown-header text-uppercase small">Export format</h6></li>
           {EXPORT_FORMATS.map((option, index) => {

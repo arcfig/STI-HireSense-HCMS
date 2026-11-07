@@ -137,7 +137,7 @@ function Login({ onLogin }) {
       } else {
         setScanMessage({ text: 'AI could not read the document clearly.', type: 'warning' });
       }
-    } catch (err) {
+    } catch {
       setScanMessage({ text: 'Scanner connection failed.', type: 'danger' });
     } finally {
       setIsScanning(false);
@@ -208,7 +208,7 @@ function Login({ onLogin }) {
 
   return (
     <div 
-      className="login-viewport d-flex align-items-center justify-content-center px-3 position-relative"
+      className="login-viewport d-flex align-items-center justify-content-center px-3 py-4 pb-5 position-relative"
       style={{
         backgroundImage: `linear-gradient(110deg, rgba(24, 115, 84, 0.65) 0%, rgba(10, 45, 32, 0.85) 45%, rgba(4, 15, 12, 0.95) 100%), url(${backgroundImage})`,
         backgroundSize: 'cover',
