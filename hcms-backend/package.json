@@ -13,10 +13,12 @@
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
     "@simplewebauthn/server": "^13.3.2",
+    "archiver": "^7.0.1",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
+    "exceljs": "^3.4.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.2",
     "helmet": "^8.3.0",
@@ -24,6 +26,7 @@
     "mongoose": "^9.3.1",
     "multer": "^2.1.1",
     "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.17.2",
     "ph-id-validator": "^1.1.1"
   }
 }

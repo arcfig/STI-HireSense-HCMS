@@ -13,11 +13,12 @@ const validator = require('ph-id-validator');
 
 // 1. Import the new jose JWT middleware
 const { verifyToken, requireRole } = require('../middleware/authMiddleware');
+const { auditLogger } = require('../middleware/auditLogger');
 
 // --------------------------------------------------------
 // ROUTE: AI Document Extraction (Auto-Fill) (Secured: All logged-in users)
 // --------------------------------------------------------
-router.post('/extract', verifyToken, upload.single('document'), async (req, res) => {
+router.post('/extract', verifyToken, auditLogger(), upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No document provided for extraction." });
@@ -93,7 +94,7 @@ router.post('/extract', verifyToken, upload.single('document'), async (req, res)
 // --------------------------------------------------------
 // ROUTE: Get all 'Pending' profiles (Secured: Admins and Heads Only)
 // --------------------------------------------------------
-router.get('/pending', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+router.get('/pending', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const pendingProfiles = await Faculty.find({ status: 'pending' }).sort({ createdAt: -1 });
     res.status(200).json(pendingProfiles);
@@ -105,7 +106,7 @@ router.get('/pending', verifyToken, requireRole(['admin', 'academic_head', 'prog
 // --------------------------------------------------------
 // ROUTE: Fetch ONLY Approved Profiles (Secured: All logged-in users)
 // --------------------------------------------------------
-router.get('/approved', verifyToken, async (req, res) => {
+router.get('/approved', verifyToken, auditLogger(), async (req, res) => {
   try {
     const activeUsers = await User.find({ isArchived: { $ne: true } });
     const activeUserNames = activeUsers.map(u => u.name.toLowerCase());
@@ -127,7 +128,7 @@ router.get('/approved', verifyToken, async (req, res) => {
 // --------------------------------------------------------
 // ROUTE: Update Profile Status & Trigger Notification (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.put('/status/:id', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+router.put('/status/:id', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, remarks } = req.body;
@@ -167,7 +168,7 @@ router.put('/status/:id', verifyToken, requireRole(['admin', 'academic_head', 'p
 // --------------------------------------------------------
 // ROUTE: Edit/Update an existing credential (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.put('/edit/:id', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+router.put('/edit/:id', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { firstName, lastName, department, documentTitle, documentType, tags, eligibleSubjects } = req.body;
 
@@ -203,7 +204,7 @@ router.put('/edit/:id', verifyToken, requireRole(['admin', 'academic_head', 'pro
 // --------------------------------------------------------
 // ROUTE: AI Candidate Matcher (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.post('/match', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+router.post('/match', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { requirements } = req.body;
     if (!requirements) return res.status(400).json({ error: "Please provide job requirements." });
@@ -296,7 +297,7 @@ router.post('/match', verifyToken, requireRole(['admin', 'academic_head', 'progr
 // --------------------------------------------------------
 // ROUTE: Create Profile + Cloudinary + AI Vision OCR (Secured: All logged-in users)
 // --------------------------------------------------------
-router.post('/add', verifyToken, upload.single('document'), async (req, res) => {
+router.post('/add', verifyToken, auditLogger(), upload.single('document'), async (req, res) => {
   try {
     const { firstName, lastName, department, documentTitle, documentType, uploaderRole, autoValidate } = req.body;
     let fileUrl = "";
@@ -467,7 +468,7 @@ router.post('/add', verifyToken, upload.single('document'), async (req, res) => 
 // --------------------------------------------------------
 // ROUTE: Get Subject Hierarchy (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.get('/subjects/hierarchy', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+router.get('/subjects/hierarchy', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const subjects = await Subject.find()
       .populate('programId', 'name')
@@ -500,7 +501,7 @@ router.get('/subjects/hierarchy', verifyToken, requireRole(['admin', 'academic_h
 // --------------------------------------------------------
 // ROUTE: Get Eligible Faculty by Course Code (Secured: Admins and Heads)
 // --------------------------------------------------------
-router.get('/subjects/:courseCode/faculty', verifyToken, requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+router.get('/subjects/:courseCode/faculty', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
   try {
     const { courseCode } = req.params;
 

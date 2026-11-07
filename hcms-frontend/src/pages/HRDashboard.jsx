@@ -1,12 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
+import ExportFacultyStatsButton from '../components/ExportFacultyStatsButton';
+
+const VERIFICATION_STATUS_META = {
+  verified: {
+    variantClass: 'verification-result-card--verified',
+    icon: 'bi-shield-fill-check',
+    label: 'AI Verified',
+  },
+  flagged: {
+    variantClass: 'verification-result-card--flagged',
+    icon: 'bi-exclamation-triangle-fill',
+    label: 'Needs Review',
+  },
+  failed: {
+    variantClass: 'verification-result-card--failed',
+    icon: 'bi-x-octagon-fill',
+    label: 'Verification Failed',
+  },
+};
 
 function HRDashboard({ user }) {
   const [pendingFaculty, setPendingFaculty] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterDept, setFilterDept] = useState('');
-  const [message, setMessage] = useState('');
 
   // State to track editing
   const [editingDoc, setEditingDoc] = useState(null);
@@ -23,12 +41,19 @@ function HRDashboard({ user }) {
   const [previewDoc, setPreviewDoc] = useState({ isOpen: false, url: '', title: '' });
   const [reportDoc, setReportDoc] = useState(null);
 
+  // Track in-flight verification requests locally for instant button lock before server round-trip
+  const [submittingIds, setSubmittingIds] = useState(() => new Set());
+  // Track the most recently updated verification card so useEffect can auto-scroll it into view
+  const [scrollTarget, setScrollTarget] = useState(null);
+  const resultCardRefs = useRef({});
+  const reportModalRef = useRef(null);
+
   // 1. Retrieve the token once at the top so all functions can use it
   const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser'));
   const token = savedUser?.token;
 
   // --- FETCH PENDING ---
-  const fetchPending = async () => {
+  const fetchPending = useCallback(async () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/pending`, {
         method: 'GET',
@@ -47,20 +72,81 @@ function HRDashboard({ user }) {
     } catch (error) {
       console.error("Error fetching pending data:", error);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
-    fetchPending();
-  }, []);
+    let ignore = false;
+    const loadInitialPending = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/pending`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        const data = await response.json();
+        if (!ignore && response.ok) {
+          setPendingFaculty(data);
+        }
+      } catch (error) {
+        if (!ignore) console.error("Error fetching pending data:", error);
+      }
+    };
+    loadInitialPending();
+    return () => { ignore = true; };
+  }, [token]);
 
-  // Listen to global verification events to refresh the table automatically
+  // Listen to global verification events to refresh the table and auto-scroll to the completed result
   useEffect(() => {
-    const handleVerificationComplete = () => {
+    const handleVerificationComplete = (event) => {
+      const completedId = event?.detail?.facultyId;
       fetchPending();
+      if (completedId) {
+        setSubmittingIds(prev => {
+          if (!prev.has(completedId)) return prev;
+          const next = new Set(prev);
+          next.delete(completedId);
+          return next;
+        });
+        setScrollTarget({ id: completedId, timestamp: Date.now() });
+      }
     };
     window.addEventListener('verificationCompleted', handleVerificationComplete);
     return () => window.removeEventListener('verificationCompleted', handleVerificationComplete);
-  }, []);
+  }, [fetchPending]);
+
+  // Auto-scroll viewport to the verification result container when triggered or completed
+  useEffect(() => {
+    if (!scrollTarget?.id) return undefined;
+
+    const timer = setTimeout(() => {
+      const targetNode = resultCardRefs.current[scrollTarget.id];
+      if (targetNode) {
+        targetNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (typeof targetNode.focus === 'function') {
+          targetNode.focus({ preventScroll: true });
+        }
+      }
+    }, 80);
+
+    const clearHighlightTimer = setTimeout(() => {
+      setScrollTarget(prev => (prev?.timestamp === scrollTarget.timestamp ? null : prev));
+    }, 3400);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(clearHighlightTimer);
+    };
+  }, [scrollTarget, pendingFaculty]);
+
+  // Auto-scroll and focus the detailed report modal container immediately when opened
+  useEffect(() => {
+    if (reportDoc && reportModalRef.current) {
+      reportModalRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      reportModalRef.current.focus({ preventScroll: true });
+    }
+  }, [reportDoc]);
 
   // --- MODAL HANDLERS ---
   const openConfirmDialog = (id, status) => {
@@ -93,7 +179,7 @@ function HRDashboard({ user }) {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [confirmDialog.isOpen, previewDoc.isOpen]);
+  }, [confirmDialog.isOpen, previewDoc.isOpen, reportDoc]);
 
   // --- STATUS UPDATE ---
   const executeUpdateStatus = async () => {
@@ -103,7 +189,7 @@ function HRDashboard({ user }) {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/status/${facultyId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`, 
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ status: newStatus, remarks: remarks })
@@ -117,23 +203,39 @@ function HRDashboard({ user }) {
         toast.error('Failed to update status.');
         closeConfirmDialog();
       }
-    } catch (error) {
+    } catch {
       toast.error('Server error.');
       closeConfirmDialog();
     }
   };
 
-  // --- VERIFICATION HANDLER (ASYNC FIRE AND FORGET) ---
+  // --- VERIFICATION HANDLER (ASYNC FIRE AND FORGET WITH DUPLICATE SUBMISSION LOCK) ---
   const handleVerify = async (faculty) => {
+    const id = faculty._id;
+
+    // Guard against duplicate clicks if already verifying or already verified/flagged
+    if (
+      submittingIds.has(id) ||
+      faculty.verificationStatus === 'verifying' ||
+      faculty.verificationStatus === 'verified' ||
+      faculty.verificationStatus === 'flagged'
+    ) {
+      return;
+    }
+
     if (!faculty.documentUrl) {
       toast.error("No document URL available to verify.");
       return;
     }
 
-    toast(`AI Verification started for ${faculty.firstName}. You will be notified when complete.`, { icon: '⏳' });
+    // Lock the button synchronously and optimistically show the processing status banner
+    setSubmittingIds(prev => new Set(prev).add(id));
+    setPendingFaculty(prev =>
+      prev.map(f => (f._id === id ? { ...f, verificationStatus: 'verifying' } : f))
+    );
+    setScrollTarget({ id, timestamp: Date.now() });
 
-    // Optimistically update UI
-    setPendingFaculty(prev => prev.map(f => f._id === faculty._id ? { ...f, verificationStatus: 'verifying' } : f));
+    toast(`AI Verification started for ${faculty.firstName}. Please wait while we analyze the certificate.`, { icon: '⏳' });
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/verify-certificate`, {
@@ -142,16 +244,26 @@ function HRDashboard({ user }) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ facultyId: faculty._id })
+        body: JSON.stringify({ facultyId: id })
       });
 
       if (!response.ok) {
         toast.error("Failed to start verification.");
+        setSubmittingIds(prev => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
         fetchPending(); // Revert optimistic update
       }
     } catch (error) {
       console.error("Verification error:", error);
       toast.error("An error occurred starting verification.");
+      setSubmittingIds(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       fetchPending(); // Revert optimistic update
     }
   };
@@ -202,18 +314,21 @@ function HRDashboard({ user }) {
       } else {
         toast.error('Failed to save edits.');
       }
-    } catch (error) {
+    } catch {
       toast.error('Server error during edit.');
     }
   };
 
   return (
     <div className="position-relative">
-      <div className="mb-4 flex-shrink-0">
-        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
-          <i className="bi bi-shield-lock-fill text-primary me-2"></i>HR Management Dashboard
-        </h2>
-        <p className="text-muted mb-0">Review, edit, and verify pending faculty documents.</p>
+      <div className="mb-4 flex-shrink-0 d-flex flex-wrap justify-content-between align-items-start gap-3">
+        <div>
+          <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+            <i className="bi bi-shield-lock-fill text-primary me-2"></i>HR Management Dashboard
+          </h2>
+          <p className="text-muted mb-0">Review, edit, and verify pending faculty documents.</p>
+        </div>
+        <ExportFacultyStatsButton user={user} />
       </div>
 
       {/* --- SEARCH & FILTER BAR --- */}
@@ -383,76 +498,166 @@ function HRDashboard({ user }) {
                   <th className="py-3 px-4 fw-semibold border-bottom-0">Faculty Member</th>
                   <th className="py-3 px-4 fw-semibold border-bottom-0">Document Submitted</th>
                   <th className="py-3 px-4 fw-semibold border-bottom-0">AI Extracted Details</th>
-                  <th className="py-3 px-4 fw-semibold border-bottom-0 text-center" style={{ width: '180px' }}>Actions</th>
+                  <th className="py-3 px-4 fw-semibold border-bottom-0 text-center" style={{ width: '250px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingFaculty
                   .filter(faculty => {
-                    const matchesSearch = 
-                      `${faculty.firstName} ${faculty.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    const matchesSearch =
+                      `${faculty.firstName} ${faculty.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
                       (faculty.documentTitle || '').toLowerCase().includes(searchTerm.toLowerCase());
                     const matchesType = filterType === '' || faculty.documentType === filterType || (filterType === '201 File' && faculty.documentType === 'Identification');
                     const matchesDept = filterDept === '' || (faculty.department || 'Unassigned') === filterDept;
                     return matchesSearch && matchesType && matchesDept;
                   })
-                  .map((faculty) => (
-                  <tr key={faculty._id}>
-                    <td className="px-4 py-3">
-                      <p className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{faculty.firstName} {faculty.lastName}</p>
-                      <small className="text-muted">{faculty.department}</small>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="fw-bold text-primary mb-0">{faculty.documentTitle || 'Untitled'}</p>
-                      <span className="badge border mt-1" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{faculty.documentType || 'Other'}</span>
-                      {faculty.documentUrl && (
-                        <button 
-                          onClick={() => openViewer(faculty.documentUrl, faculty.documentTitle || 'Document Preview')}
-                          className="btn btn-link p-0 text-decoration-none small d-block mt-2 text-start"
-                        >
-                          <i className="bi bi-link-45deg"></i> View File
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      {faculty.tags && faculty.tags.length > 0 ? (
-                        <div className="d-flex flex-wrap gap-1">
-                          {faculty.tags.map((tag, index) => (
-                            <span key={index} className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-muted small fst-italic">No tags extracted</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="mb-2">
-                        {faculty.verificationStatus === 'verifying' && <span className="badge bg-warning" style={{ color: 'var(--text-main)' }}><span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Verifying...</span>}
-                        {faculty.verificationStatus === 'verified' && <span className="badge bg-success" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-shield-check me-1"></i> Verified</span>}
-                        {faculty.verificationStatus === 'flagged' && <span className="badge bg-warning" style={{cursor: 'pointer', color: 'var(--text-main)'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-exclamation-circle me-1"></i> Needs Review</span>}
-                        {faculty.verificationStatus === 'failed' && <span className="badge bg-secondary" style={{cursor: 'pointer'}} onClick={() => setReportDoc(faculty)} title="Click to view full AI report"><i className="bi bi-exclamation-triangle me-1"></i> Failed</span>}
-                      </div>
-                      <div className="d-flex justify-content-center gap-2 mb-2">
-                        <button onClick={() => startEditing(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100">
-                          <i className="bi bi-pencil-square me-1"></i> Edit Data
-                        </button>
-                        {faculty.documentType === 'Certificate' && (
-                          <button onClick={() => handleVerify(faculty)} className="btn btn-sm btn-outline-primary fw-bold px-3 w-100" title="Verify Certificate" disabled={faculty.verificationStatus === 'verifying'}>
-                            <i className="bi bi-search me-1"></i> Verify
-                          </button>
-                        )}
-                      </div>
-                      <div className="d-flex justify-content-center gap-2">
-                        <button onClick={() => openConfirmDialog(faculty._id, 'approved')} className="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm w-50" title="Approve">
-                          <i className="bi bi-check-lg"></i>
-                        </button>
-                        <button onClick={() => openConfirmDialog(faculty._id, 'rejected')} className="btn btn-sm btn-outline-danger fw-bold px-3 w-50" title="Reject">
-                          <i className="bi bi-x-lg"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                  .map((faculty) => {
+                    const isVerifying = submittingIds.has(faculty._id) || faculty.verificationStatus === 'verifying';
+                    const isAlreadyVerified = faculty.verificationStatus === 'verified' || faculty.verificationStatus === 'flagged';
+                    const isVerifyDisabled = isVerifying || isAlreadyVerified;
+                    const statusMeta = VERIFICATION_STATUS_META[faculty.verificationStatus];
+                    const isHighlighted = scrollTarget?.id === faculty._id;
+
+                    return (
+                      <tr key={faculty._id}>
+                        <td className="px-4 py-3">
+                          <p className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>{faculty.firstName} {faculty.lastName}</p>
+                          <small className="text-muted">{faculty.department}</small>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="fw-bold text-primary mb-0">{faculty.documentTitle || 'Untitled'}</p>
+                          <span className="badge border mt-1" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{faculty.documentType || 'Other'}</span>
+                          {faculty.documentUrl && (
+                            <button
+                              type="button"
+                              onClick={() => openViewer(faculty.documentUrl, faculty.documentTitle || 'Document Preview')}
+                              className="btn btn-link p-0 text-decoration-none small d-block mt-2 text-start"
+                            >
+                              <i className="bi bi-link-45deg"></i> View File
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {faculty.tags && faculty.tags.length > 0 ? (
+                            <div className="d-flex flex-wrap gap-1">
+                              {faculty.tags.map((tag, index) => (
+                                <span key={index} className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)' }}>{tag}</span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted small fst-italic">No tags extracted</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {/* --- VERIFICATION RESULT / PROCESSING CONTAINER --- */}
+                          <div
+                            ref={el => { resultCardRefs.current[faculty._id] = el; }}
+                            tabIndex={-1}
+                            aria-live="polite"
+                            className="mb-2"
+                          >
+                            {isVerifying && (
+                              <div className="verification-processing-banner" role="status">
+                                <span className="spinner-border spinner-border-sm flex-shrink-0" aria-hidden="true"></span>
+                                <div>
+                                  <div className="fw-bold">AI Verifying Certificate...</div>
+                                  <div className="small fw-normal opacity-75">Please wait, do not click again</div>
+                                </div>
+                              </div>
+                            )}
+
+                            {!isVerifying && statusMeta && (
+                              <button
+                                type="button"
+                                onClick={() => setReportDoc(faculty)}
+                                className={`verification-result-card ${statusMeta.variantClass} ${isHighlighted ? 'verification-result-card--highlight' : ''}`}
+                                aria-label={`${statusMeta.label} for ${faculty.firstName} ${faculty.lastName}. Click here to view full AI verification details.`}
+                              >
+                                <span className="verification-result-card__status">
+                                  <i className={`bi ${statusMeta.icon}`} aria-hidden="true"></i>
+                                  <span>{statusMeta.label}</span>
+                                </span>
+                                <span className="verification-result-card__cta">
+                                  <span className="verification-result-card__cta-text">
+                                    Click here to view full details
+                                  </span>
+                                  <i className="bi bi-chevron-right verification-result-card__chevron" aria-hidden="true"></i>
+                                </span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* --- PRIMARY ROW ACTIONS --- */}
+                          <div className="d-flex justify-content-center gap-2 mb-2">
+                            <button
+                              type="button"
+                              onClick={() => startEditing(faculty)}
+                              className="btn btn-sm btn-outline-primary fw-bold px-2 w-100"
+                            >
+                              <i className="bi bi-pencil-square me-1"></i> Edit Data
+                            </button>
+                            {faculty.documentType === 'Certificate' && (
+                              <button
+                                type="button"
+                                onClick={() => handleVerify(faculty)}
+                                className="btn btn-sm btn-outline-primary btn-verify-trigger fw-bold px-2 w-100 d-inline-flex align-items-center justify-content-center gap-1"
+                                title={
+                                  isVerifying
+                                    ? 'Verification is currently in progress'
+                                    : isAlreadyVerified
+                                      ? 'Verification completed — click the result card above to view full details'
+                                      : 'Run AI certificate verification'
+                                }
+                                disabled={isVerifyDisabled}
+                                aria-busy={isVerifying}
+                              >
+                                {isVerifying ? (
+                                  <>
+                                    <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                                    <span>Verifying...</span>
+                                  </>
+                                ) : isAlreadyVerified ? (
+                                  <>
+                                    <i className="bi bi-check2-circle" aria-hidden="true"></i>
+                                    <span>Verified</span>
+                                  </>
+                                ) : faculty.verificationStatus === 'failed' ? (
+                                  <>
+                                    <i className="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                                    <span>Retry Verify</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <i className="bi bi-search" aria-hidden="true"></i>
+                                    <span>Verify</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="d-flex justify-content-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openConfirmDialog(faculty._id, 'approved')}
+                              className="btn btn-sm btn-outline-success fw-bold px-3 shadow-sm w-50"
+                              title="Approve Document"
+                            >
+                              <i className="bi bi-check-lg"></i>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openConfirmDialog(faculty._id, 'rejected')}
+                              className="btn btn-sm btn-outline-danger fw-bold px-3 w-50"
+                              title="Reject Document"
+                            >
+                              <i className="bi bi-x-lg"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -497,12 +702,21 @@ function HRDashboard({ user }) {
 
       {/* --- VERIFICATION REPORT MODAL --- */}
       {reportDoc && reportDoc.verificationData && (
-        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
-          <div className="modal-dialog modal-lg modal-dialog-centered">
+        <div
+          className="modal d-block"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+          onClick={(e) => { if (e.target === e.currentTarget) setReportDoc(null); }}
+        >
+          <div
+            ref={reportModalRef}
+            tabIndex={-1}
+            className="modal-dialog modal-lg modal-dialog-centered"
+          >
             <div className="modal-content border-0 shadow-lg" style={{ backgroundColor: 'var(--surface-neutral)' }}>
               <div className="modal-header bg-dark text-white">
                 <h5 className="modal-title fw-bold text-white">
-                  AI Verification Report
+                  <i className="bi bi-shield-check me-2"></i>
+                  AI Verification Report — {reportDoc.firstName} {reportDoc.lastName}
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setReportDoc(null)}></button>
               </div>
@@ -515,11 +729,11 @@ function HRDashboard({ user }) {
                 </div>
                 <h6 className="fw-bold text-primary mb-3">AI Extracted Data</h6>
                 <div className="p-3 rounded mb-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
-                  <p className="mb-1"><strong>Issuer:</strong> {reportDoc.verificationData.extractedData?.issuer}</p>
-                  <p className="mb-1"><strong>Topic:</strong> {reportDoc.verificationData.extractedData?.topic}</p>
-                  <p className="mb-0"><strong>Date:</strong> {reportDoc.verificationData.extractedData?.date}</p>
+                  <p className="mb-1"><strong>Issuer:</strong> {reportDoc.verificationData.extractedData?.issuer || 'Not specified'}</p>
+                  <p className="mb-1"><strong>Topic:</strong> {reportDoc.verificationData.extractedData?.topic || 'Not specified'}</p>
+                  <p className="mb-0"><strong>Date:</strong> {reportDoc.verificationData.extractedData?.date || 'Not specified'}</p>
                 </div>
-                
+
                 <h6 className="fw-bold text-danger mb-3">Forgery & Manipulation Analysis</h6>
                 <div className="p-3 rounded mb-4 border-start border-danger border-4" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
                   <p className="mb-1"><strong>Anomaly Score:</strong> {reportDoc.verificationData.layoutAnomalyScore !== undefined ? (reportDoc.verificationData.layoutAnomalyScore * 100).toFixed(0) + '%' : 'N/A'}</p>
@@ -545,7 +759,7 @@ function HRDashboard({ user }) {
                   <p className="mb-2 text-muted small">{reportDoc.verificationData.groundingReasoning}</p>
                   {reportDoc.verificationData.referenceUrls && reportDoc.verificationData.referenceUrls.length > 0 && (
                     <div>
-                      <strong className="d-block mb-1" style={{fontSize: '0.8rem'}}>Reference Links:</strong>
+                      <strong className="d-block mb-1" style={{ fontSize: '0.8rem' }}>Reference Links:</strong>
                       <ul className="mb-0 ps-3 small text-break">
                         {reportDoc.verificationData.referenceUrls.map((url, i) => (
                           <li key={i}><a href={url} target="_blank" rel="noopener noreferrer">{url}</a></li>
