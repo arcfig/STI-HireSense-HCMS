@@ -406,3 +406,155 @@ h6.text-muted,
   background-position: center;
   background-repeat: no-repeat;
 }
+
+/* 16. Certificate Verification UX & Interactive Result Card Affordances */
+.verification-result-card {
+  --verify-color: var(--brand-primary-bg);
+  --verify-border: var(--brand-primary-bg);
+  --verify-hover-bg: var(--brand-primary-bg);
+  --verify-hover-text: #ffffff;
+  --verify-pulse: rgba(8, 97, 47, 0.45);
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--verify-border);
+  background-color: transparent;
+  color: var(--verify-color);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, filter 0.15s ease-in-out;
+  position: relative;
+}
+
+/* Matches .btn-outline-primary ("Edit Data") */
+.verification-result-card--verified {
+  --verify-color: var(--brand-primary-bg);
+  --verify-border: var(--brand-primary-bg);
+  --verify-hover-bg: var(--brand-primary-bg);
+  --verify-hover-text: #ffffff;
+  --verify-pulse: rgba(8, 97, 47, 0.45);
+}
+
+.verification-result-card--verified:hover,
+.verification-result-card--verified:focus-visible {
+  filter: brightness(0.9);
+}
+
+/* Matches warning / .btn-outline-warning */
+.verification-result-card--flagged {
+  --verify-color: #b45309;
+  --verify-border: #d97706;
+  --verify-hover-bg: var(--semantic-warning);
+  --verify-hover-text: #1e293b;
+  --verify-pulse: rgba(255, 193, 7, 0.55);
+}
+
+[data-bs-theme="dark"] .verification-result-card--flagged {
+  --verify-color: var(--semantic-warning);
+  --verify-border: var(--semantic-warning);
+}
+
+/* Matches .btn-outline-danger (Reject "X" button) */
+.verification-result-card--failed {
+  --verify-color: var(--bs-danger, #dc3545);
+  --verify-border: var(--bs-danger, #dc3545);
+  --verify-hover-bg: var(--bs-danger, #dc3545);
+  --verify-hover-text: #ffffff;
+  --verify-pulse: rgba(220, 53, 69, 0.45);
+}
+
+.verification-result-card:hover,
+.verification-result-card:focus-visible {
+  background-color: var(--verify-hover-bg);
+  border-color: var(--verify-hover-bg);
+  color: var(--verify-hover-text);
+  outline: none;
+}
+
+.verification-result-card__status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.verification-result-card__cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px dashed color-mix(in srgb, currentColor 35%, transparent);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: inherit;
+}
+
+.verification-result-card__cta-text {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1.25px;
+}
+
+.verification-result-card__chevron {
+  display: inline-block;
+  transition: transform 0.15s ease-in-out;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.verification-result-card:hover .verification-result-card__chevron,
+.verification-result-card:focus-visible .verification-result-card__chevron {
+  transform: translateX(3px);
+}
+
+/* Processing banner shown while AI verification is in-flight */
+.verification-processing-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.25rem;
+  border: 1px dashed var(--brand-primary-bg);
+  background-color: transparent;
+  color: var(--brand-primary-bg);
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Attention pulse when auto-scrolling the viewport to a newly rendered result */
+@keyframes verification-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--verify-pulse);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(0, 0, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
+}
+
+.verification-result-card--highlight {
+  animation: verification-focus-pulse 1.6s ease-out 2;
+}
+
+/* Disabled Verify button styling — matches the adjacent green outline buttons */
+.btn-verify-trigger:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+  background-color: transparent !important;
+  color: var(--brand-primary-bg) !important;
+  border: 1px solid var(--brand-primary-bg) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}

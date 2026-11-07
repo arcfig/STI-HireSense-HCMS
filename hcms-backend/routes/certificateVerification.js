@@ -3,11 +3,13 @@ const router = express.Router();
 const Faculty = require('../models/Faculty');
 const { processVerificationInBackground, verificationEmitter } = require('../services/verificationService');
 const { verifyToken } = require('../middleware/authMiddleware');
+const { auditLogger } = require('../middleware/auditLogger');
 
 // --------------------------------------------------------
 // ROUTE: Trigger AI Verification (Async Fire-and-Forget)
+// Note: GET /stream (SSE keep-alive) below is intentionally excluded from audit logging.
 // --------------------------------------------------------
-router.post('/', verifyToken, async (req, res) => {
+router.post('/', verifyToken, auditLogger(), async (req, res) => {
   try {
     const { facultyId } = req.body;
 

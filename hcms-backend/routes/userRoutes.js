@@ -4,6 +4,10 @@ const router = express.Router();
 
 // 1. Import the new jose JWT middleware
 const { verifyToken, requireRole } = require('../middleware/authMiddleware');
+const { auditLogger } = require('../middleware/auditLogger');
+
+// All /api/users endpoints access or mutate user accounts/privileges — enforce auth + non-blocking audit trail
+router.use(verifyToken, auditLogger());
 
 // ==========================================
 // SECTION 1: SPECIFIC ROUTES (Must go first)

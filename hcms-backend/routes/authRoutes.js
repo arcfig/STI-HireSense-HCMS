@@ -9,6 +9,7 @@ const {
   verifyAuthenticationResponse
 } = require('@simplewebauthn/server');
 const { verifyToken } = require('../middleware/authMiddleware');
+const { auditLogger, recordAuditEvent } = require('../middleware/auditLogger');
 const router = express.Router();
 
 const rpName = 'STI Human Capital System';
@@ -69,7 +70,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
-    // 2. Prevent archived accounts from logging in
+    // 2. Prevent archived accounts from logging in (still record attempt in audit trail)
+    if (user.isArchived) {
+      recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/login [archived-blocked]' });
+    }
     if (user.isArchived) {
       return res.status(403).json({
         error: "Account Archived: This account has been disabled. Please contact the system administrator for restoration."
@@ -80,6 +84,7 @@ router.post('/login', async (req, res) => {
     const isStandardMatch = await bcrypt.compare(password, user.passwordHash);
 
     if (!isStandardMatch) {
+      recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/login [invalid-password]' });
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
@@ -94,7 +99,8 @@ router.post('/login', async (req, res) => {
       .setExpirationTime('24h') // Token expires in 24 hours
       .sign(secret);
 
-    // 5. Success Response
+    // 5. Success Response (record sign-in for admins and all roles)
+    recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/login [method:password]' });
     res.status(200).json({
       message: "Login successful",
       token: token,
@@ -114,7 +120,7 @@ router.post('/login', async (req, res) => {
 });
 
 // --- ROUTE: CHANGE PASSWORD ---
-router.put('/change-password', verifyToken, async (req, res) => {
+router.put('/change-password', verifyToken, auditLogger(), async (req, res) => {
   const { username, currentPassword, newPassword } = req.body;
   try {
     const user = await User.findOne({ username });
@@ -180,7 +186,7 @@ router.post('/webauthn/register/generate-options', verifyToken, async (req, res)
   }
 });
 
-router.post('/webauthn/register/verify', verifyToken, async (req, res) => {
+router.post('/webauthn/register/verify', verifyToken, auditLogger(), async (req, res) => {
   const { username, response } = req.body;
   try {
     const user = await User.findOne({ username });
@@ -288,7 +294,8 @@ router.post('/webauthn/login/verify', async (req, res) => {
       user.currentChallenge = null;
       await user.save();
 
-      // Issue JWT like standard login
+      // Issue JWT like standard login and record biometric sign-in
+      recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/webauthn/login/verify [method:webauthn]' });
       const token = await new SignJWT({
         id: user._id,
         username: user.username,
@@ -312,6 +319,7 @@ router.post('/webauthn/login/verify', async (req, res) => {
         }
       });
     } else {
+      recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/webauthn/login/verify [failed]' });
       res.status(400).json({ error: "Verification failed" });
     }
   } catch (error) {

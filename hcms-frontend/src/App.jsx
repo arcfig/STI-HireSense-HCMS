@@ -15,6 +15,7 @@ import './App.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import SubjectManager from './pages/SubjectManager';
 import ArchivedUsers from './pages/ArchivedUsers';
+import AuditLogs from './pages/AuditLogs';
 import ErrorBoundary from './ErrorBoundary';
 
 const isAdmin = (role) => role === 'admin';
@@ -91,6 +92,10 @@ function Sidebar({ user, onLogout, isSidebarOpen, setIsSidebarOpen }) {
             <Link to="/manage-users" draggable="false" className={getLinkClass('/manage-users')} style={getLinkStyle('/manage-users')}>
               <i className="bi bi-person-lines-fill" style={iconStyle}></i>
               <span style={textStyle}>Manage Users</span>
+            </Link>
+            <Link to="/audit-logs" draggable="false" className={getLinkClass('/audit-logs')} style={getLinkStyle('/audit-logs')}>
+              <i className="bi bi-journal-check" style={iconStyle}></i>
+              <span style={textStyle}>Audit Logs</span>
             </Link>
             <Link to="/archived-users" draggable="false" className={getLinkClass('/archived-users')} style={getLinkStyle('/archived-users')}>
               <i className="bi bi-archive-fill" style={iconStyle}></i>
@@ -328,6 +333,7 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
                 <Route path="/subjects" element={isHeadOrAdmin(user.role) ? <SubjectManager /> : <Navigate to="/" />} />
                 <Route path="/manage-users" element={isAdmin(user.role) ? <ManageUsers currentUser={user} /> : <Navigate to="/" />} />
                 <Route path="/archived-users" element={isAdmin(user.role) ? <ArchivedUsers /> : <Navigate to="/" />} />
+                <Route path="/audit-logs" element={isAdmin(user.role) ? <AuditLogs currentUser={user} /> : <Navigate to="/" />} />
                 <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </ErrorBoundary>

@@ -37,6 +37,7 @@ app.use(cors({
 const facultyRoutes = require('./routes/facultyRoutes');
 const authRoutes = require('./routes/authRoutes');
 const statisticsRoutes = require('./routes/statisticsRoutes');
+const auditRoutes = require('./routes/auditRoutes');
 
 // Tell the server to use them
 app.use('/api/faculty', facultyRoutes);
@@ -44,6 +45,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/verify-certificate', require('./routes/certificateVerification'));
 app.use('/api/statistics', statisticsRoutes);
+app.use('/api/audit-logs', auditRoutes);
 // The actual connection to MongoDB Atlas
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('Successfully connected to MongoDB Atlas!'))

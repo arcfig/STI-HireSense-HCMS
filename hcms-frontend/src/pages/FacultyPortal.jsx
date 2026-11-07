@@ -280,7 +280,7 @@ const FacultyPortal = ({ user }) => {
 
           {/* Column B: Analytical Summary (Right Pane) */}
           <div className="col-lg-4">
-            <h5 className="text-secondary fw-bold mb-3">System Health</h5>
+            <h5 className="text-secondary fw-bold mb-3">{isHeadOrAdmin ? 'Faculty Overview' : 'Portfolio Summary'}</h5>
             <div className="row g-3">
               {isHeadOrAdmin ? (
                 <>
@@ -403,18 +403,18 @@ const FacultyPortal = ({ user }) => {
             {/* Recent Activity Timeline - Only for Admin/Heads */}
             {isHeadOrAdmin && (
               <>
-                <h5 className="text-secondary fw-bold mb-3 mt-5">Recent Activity</h5>
+                <h5 className="text-secondary fw-bold mb-3 mt-5">Recent Approvals</h5>
                 <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
                   <div className="card-body p-0">
                     {recentActivity.length > 0 ? (
                       <ul className="list-group list-group-flush">
                         {recentActivity.map((activity, idx) => (
-                          <li key={idx} className="list-group-item px-4 py-3 d-flex align-items-center border-bottom" style={{ borderColor: 'var(--border-neutral)' }}>
+                          <li key={idx} className="list-group-item px-4 py-3 d-flex align-items-center border-bottom" style={{ backgroundColor: 'var(--surface-neutral)', borderColor: 'var(--border-neutral)' }}>
                             <div className="p-2 me-3 rounded-circle d-flex align-items-center justify-content-center" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', width: '36px', height: '36px' }}>
                               <i className="bi bi-check-lg" style={{ color: 'var(--brand-primary-bg)' }}></i>
                             </div>
                             <div className="flex-grow-1">
-                              <p className="mb-0 fw-semibold text-dark fs-6" style={{ lineHeight: '1.2' }}>{activity.documentTitle}</p>
+                              <p className="mb-0 fw-semibold fs-6" style={{ color: 'var(--text-main)', lineHeight: '1.2' }}>{activity.documentTitle}</p>
                               <small className="text-muted">{activity.firstName} {activity.lastName} • {activity.documentType}</small>
                             </div>
                             <small className="text-muted fw-medium text-end ms-2">
@@ -425,7 +425,7 @@ const FacultyPortal = ({ user }) => {
                       </ul>
                     ) : (
                       <div className="p-4 text-center">
-                        <p className="text-muted fst-italic mb-0">No recent activity found.</p>
+                        <p className="text-muted fst-italic mb-0">No approved credentials yet.</p>
                       </div>
                     )}
                   </div>
