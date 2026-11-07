@@ -28,7 +28,12 @@ const authLimiter = rateLimit({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://purple-barracuda-687260.hostingersite.com'], 
+  origin: [
+    'http://localhost:5173',
+    'https://hiresense.site',
+    'https://www.hiresense.site',
+    'https://purple-barracuda-687260.hostingersite.com'
+  ], 
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'], // The explicit inclusion of 'Authorization' resolves the 204 block
   exposedHeaders: ['Content-Disposition'], // Lets the frontend read the filename of file downloads (e.g. statistics export)
