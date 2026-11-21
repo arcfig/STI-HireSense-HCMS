@@ -295,23 +295,32 @@ function Login({ onLogin }) {
         const extractedName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
         const generatedUsername = `${data.firstName?.toLowerCase() || ''}.${data.lastName?.toLowerCase() || ''}`.replace(/\s+/g, '');
 
+        const validDepts = ['Information Technology', 'General Education', 'Tourism & Hospitality'];
+        let matchedDept = validDepts.find(d => d.toLowerCase() === String(data.department || '').toLowerCase()) || '';
+        if (!matchedDept && data.department) {
+          if (/it|computer|software|tech|info/i.test(data.department)) matchedDept = 'Information Technology';
+          else if (/tour|hosp|culinary|hotel/i.test(data.department)) matchedDept = 'Tourism & Hospitality';
+          else matchedDept = 'General Education';
+        }
+
         // Auto-fill the credentials state!
         setCredentials(prev => ({
           ...prev,
           name: extractedName || prev.name,
-          department: data.department || prev.department,
+          department: matchedDept || prev.department,
           username: generatedUsername || prev.username
         }));
 
-        setScanMessage({ text: 'Scan complete! Form auto-filled.', type: 'success' });
+        setScanMessage({ text: `Scan complete (${file.name})! Form auto-filled.`, type: 'success' });
       } else {
-        setScanMessage({ text: 'AI could not read the document clearly.', type: 'warning' });
+        setScanMessage({ text: data.error || 'AI could not read the document clearly.', type: 'warning' });
+        e.target.value = null;
       }
     } catch {
       setScanMessage({ text: 'Scanner connection failed.', type: 'danger' });
+      e.target.value = null;
     } finally {
       setIsScanning(false);
-      e.target.value = null; // Clear the input
     }
   };
 

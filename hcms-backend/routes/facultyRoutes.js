@@ -16,9 +16,9 @@ const { verifyToken, requireRole } = require('../middleware/authMiddleware');
 const { auditLogger } = require('../middleware/auditLogger');
 
 // --------------------------------------------------------
-// ROUTE: AI Document Extraction (Auto-Fill) (Secured: All logged-in users)
+// ROUTE: AI Document Extraction (Auto-Fill) (Public for Sign-Up Fast-Track & Authenticated Uploads)
 // --------------------------------------------------------
-router.post('/extract', verifyToken, auditLogger(), upload.single('document'), async (req, res) => {
+router.post('/extract', auditLogger(), upload.single('document'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No document provided for extraction." });
@@ -34,7 +34,7 @@ router.post('/extract', verifyToken, auditLogger(), upload.single('document'), a
     "201 File", "Certificate", "Faculty Evaluation", "Contract", "Letter of Intent", "Non-Renewal Contract", "Identification".
     
     TASK 2: STANDARD EXTRACTION
-    Extract the person's first name, last name, the exact title of the document, and infer their academic department.
+    Extract the person's first name, last name, the exact title of the document, and infer their academic department (MUST be the closest match from: "Information Technology", "General Education", or "Tourism & Hospitality").
     Also extract the "dateReceived" (YYYY-MM-DD), the "expirationDate" (YYYY-MM-DD, leave blank if none), and the "issuingInstitution".
     
     TASK 3: DYNAMIC METRICS
