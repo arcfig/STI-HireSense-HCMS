@@ -36,9 +36,13 @@ async function sendTwoFactorOtp({ toEmail, recipientName, otpCode, purpose = 'lo
 
   const actionLabel = purpose === 'enable'
     ? 'enable Two-Factor Authentication (2FA) on your HireSense account'
-    : 'complete your sign-in to HireSense';
+    : purpose === 'reset'
+      ? 'reset the password for your HireSense account'
+      : 'complete your sign-in to HireSense';
 
-  const subject = `HireSense Security Code: ${otpCode}`;
+  const subject = purpose === 'reset'
+    ? `HireSense Password Reset Code: ${otpCode}`
+    : `HireSense Security Code: ${otpCode}`;
   const textBody = [
     `Hello ${recipientName || 'HireSense User'},`,
     '',

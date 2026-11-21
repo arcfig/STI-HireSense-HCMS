@@ -433,14 +433,22 @@ router.post('/2fa/disable', verifyToken, auditLogger(), async (req, res) => {
 
 // --- ROUTE: CHANGE PASSWORD ---
 router.put('/change-password', verifyToken, auditLogger(), async (req, res) => {
-  const { username, currentPassword, newPassword } = req.body;
+  const { currentPassword, newPassword } = req.body;
   try {
-    const user = await User.findOne({ username });
+    const user = await findAuthenticatedUser(req);
     if (!user) return res.status(404).json({ error: "User not found" });
 
     // Prevent archived accounts from changing passwords
     if (user.isArchived) {
       return res.status(403).json({ error: "Account Archived: Cannot modify disabled accounts." });
+    }
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Current password and new password are required." });
+    }
+
+    if (String(newPassword).length < 8 || !/\S/.test(String(newPassword))) {
+      return res.status(400).json({ error: "New password must be at least 8 characters and contain at least one non-whitespace character." });
     }
 
     const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -452,13 +460,137 @@ router.put('/change-password', verifyToken, auditLogger(), async (req, res) => {
 
     res.status(200).json({ message: "Password updated successfully!" });
   } catch (error) {
+    console.error("Change Password Error:", error);
     res.status(500).json({ error: "Server error while changing password" });
   }
 });
 
-// --- ROUTE: FORGOT PASSWORD (PROTOTYPE BYPASS) ---
+// --- ROUTE: FORGOT PASSWORD (SEND 6-DIGIT EMAIL OTP) ---
 router.post('/forgot-password', async (req, res) => {
-  res.status(403).json({ error: "Password reset is currently disabled for security reasons. Please contact the system administrator." });
+  try {
+    const rawIdentifier = String(req.body.identifier || req.body.username || req.body.email || '').trim();
+    if (!rawIdentifier) {
+      return res.status(400).json({ error: "Please enter your System Username or registered Email Address." });
+    }
+
+    const escaped = rawIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const user = await User.findOne({
+      $or: [
+        { username: rawIdentifier },
+        { email: new RegExp(`^${escaped}$`, 'i') }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "No account found matching that username or email address." });
+    }
+
+    if (user.isArchived) {
+      return res.status(403).json({ error: "Account Archived: Please contact the system administrator for restoration." });
+    }
+
+    if (!user.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(user.email)) {
+      return res.status(400).json({
+        error: "This account does not have a registered email address on file. Please contact the system administrator to reset your password."
+      });
+    }
+
+    const otpCode = generateOtpCode();
+    user.twoFactorCodeHash = await bcrypt.hash(otpCode, 10);
+    user.twoFactorCodeExpires = new Date(Date.now() + OTP_EXPIRY_MS);
+    user.twoFactorPurpose = 'reset';
+    await user.save();
+
+    const delivery = await sendTwoFactorOtp({
+      toEmail: user.email,
+      recipientName: user.name,
+      otpCode,
+      purpose: 'reset'
+    });
+
+    recordAuditEvent(req, res, {
+      userId: user._id,
+      username: user.username,
+      userRole: user.role,
+      actionType: 'WRITE',
+      targetResource: '/api/auth/forgot-password [otp-sent]'
+    });
+
+    res.status(200).json({
+      username: user.username,
+      maskedEmail: maskEmail(user.email),
+      deliveryMode: delivery.deliveryMode,
+      message: `A 6-digit password reset code has been sent to ${maskEmail(user.email)}.`
+    });
+  } catch (error) {
+    console.error("Forgot Password Error:", error);
+    res.status(500).json({ error: "Failed to send password reset code." });
+  }
+});
+
+// --- ROUTE: RESET PASSWORD WITH 6-DIGIT EMAIL OTP ---
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { username, code, newPassword } = req.body;
+    const sanitizedCode = String(code || '').trim();
+
+    if (!username || !/^\d{6}$/.test(sanitizedCode)) {
+      return res.status(400).json({ error: "Please enter a valid 6-digit reset code." });
+    }
+
+    if (!newPassword || String(newPassword).length < 8 || !/\S/.test(String(newPassword))) {
+      return res.status(400).json({
+        error: "New password must be at least 8 characters and contain at least one non-whitespace character."
+      });
+    }
+
+    const user = await User.findOne({ username });
+    if (!user || user.isArchived) {
+      return res.status(400).json({ error: "Invalid password reset request." });
+    }
+
+    if (
+      user.twoFactorPurpose !== 'reset' ||
+      !user.twoFactorCodeHash ||
+      !user.twoFactorCodeExpires ||
+      user.twoFactorCodeExpires.getTime() < Date.now()
+    ) {
+      return res.status(400).json({ error: "Reset code has expired. Please request a new code." });
+    }
+
+    const isCodeValid = await bcrypt.compare(sanitizedCode, user.twoFactorCodeHash);
+    if (!isCodeValid) {
+      recordAuditEvent(req, res, {
+        userId: user._id,
+        username: user.username,
+        userRole: user.role,
+        actionType: 'WRITE',
+        targetResource: '/api/auth/reset-password [invalid-otp]'
+      });
+      return res.status(401).json({ error: "Incorrect 6-digit reset code." });
+    }
+
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.twoFactorCodeHash = null;
+    user.twoFactorCodeExpires = null;
+    user.twoFactorPurpose = null;
+    await user.save();
+
+    recordAuditEvent(req, res, {
+      userId: user._id,
+      username: user.username,
+      userRole: user.role,
+      actionType: 'WRITE',
+      targetResource: '/api/auth/reset-password [success]'
+    });
+
+    res.status(200).json({
+      message: "Password reset successful! You can now sign in with your new password."
+    });
+  } catch (error) {
+    console.error("Reset Password Error:", error);
+    res.status(500).json({ error: "Failed to reset password." });
+  }
 });
 
 // --- WEBAUTHN / PASSKEY DEVICE MANAGEMENT ---

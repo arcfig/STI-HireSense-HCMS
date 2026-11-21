@@ -4,7 +4,9 @@ import { startRegistration } from '@simplewebauthn/browser';
 function MyProfile({ user }) {
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [message, setMessage] = useState({ text: '', type: '' });
-  const [showPasswords, setShowPasswords] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [profileData, setProfileData] = useState({
     username: user?.username || '',
@@ -284,6 +286,25 @@ function MyProfile({ user }) {
 
   const handlePasswordChange = (e) => setPasswords({ ...passwords, [e.target.name]: e.target.value });
 
+  const hasMinLength = passwords.newPassword.length >= 8;
+  const hasNonWhitespace = /\S/.test(passwords.newPassword);
+
+  const getPasswordStrength = (pwd) => {
+    if (!pwd) return { label: 'Weak', percent: 0, color: 'var(--bs-danger)' };
+    if (pwd.length < 8 || !/\S/.test(pwd)) {
+      return { label: 'Weak', percent: 25, color: 'var(--bs-danger)' };
+    }
+    let score = 2;
+    if (/[A-Z]/.test(pwd) && /[a-z]/.test(pwd)) score += 1;
+    if (/\d/.test(pwd) || /[^A-Za-z0-9\s]/.test(pwd)) score += 1;
+
+    if (score === 2) return { label: 'Fair', percent: 55, color: 'var(--bs-warning)' };
+    if (score === 3) return { label: 'Good', percent: 80, color: 'var(--bs-info)' };
+    return { label: 'Strong', percent: 100, color: 'var(--bs-success)' };
+  };
+
+  const passwordStrength = getPasswordStrength(passwords.newPassword);
+
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setMessage({ text: '', type: '' });
@@ -291,14 +312,14 @@ function MyProfile({ user }) {
     if (passwords.newPassword !== passwords.confirmPassword) {
       return setMessage({ text: "New passwords do not match.", type: "danger" });
     }
-    if (passwords.newPassword.length < 6) {
-      return setMessage({ text: "Password must be at least 6 characters.", type: "danger" });
+    if (!hasMinLength || !hasNonWhitespace) {
+      return setMessage({ text: "New password must be at least 8 characters and contain at least one non-whitespace character.", type: "danger" });
     }
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/change-password`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${user.token}` },
-        body: JSON.stringify({ username: user.username, currentPassword: passwords.currentPassword, newPassword: passwords.newPassword })
+        body: JSON.stringify({ username: profileData.username || user.username, currentPassword: passwords.currentPassword, newPassword: passwords.newPassword })
       });
       const data = await response.json();
       if (response.ok) {
@@ -503,27 +524,163 @@ function MyProfile({ user }) {
 
           {/* Security Settings (Change Password) */}
           <div className="card shadow-sm border-0 rounded-3 p-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
-            <h5 className="fw-bold text-secondary mb-4 border-bottom pb-2"><i className="bi bi-shield-lock text-primary me-2"></i> Security Settings</h5>
-            {message.text && <div className={`alert alert-${message.type} py-2 border-0 shadow-sm`}><i className={`bi ${message.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>{message.text}</div>}
+            <div className="d-flex align-items-start gap-3 mb-4">
+              <div
+                className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  backgroundColor: 'rgba(8, 97, 47, 0.1)',
+                  color: 'var(--brand-primary-bg)'
+                }}
+              >
+                <i className="bi bi-lock-fill fs-4"></i>
+              </div>
+              <div>
+                <div className="text-muted fw-bold text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+                  Security
+                </div>
+                <h5 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>Change Password</h5>
+                <p className="text-muted small mb-0">
+                  Use your current password to protect this account with a new one.
+                </p>
+              </div>
+            </div>
+
+            {message.text && (
+              <div className={`alert alert-${message.type} py-2 border-0 shadow-sm mb-3`}>
+                <i className={`bi ${message.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>
+                {message.text}
+              </div>
+            )}
+
             <form onSubmit={handlePasswordSubmit}>
+              <div className="position-relative mb-3">
+                <div className="form-floating">
+                  <input
+                    type={showCurrentPassword ? "text" : "password"}
+                    className="form-control pe-5 focus-ring"
+                    id="currentPasswordInput"
+                    name="currentPassword"
+                    placeholder="Current Password"
+                    value={passwords.currentPassword}
+                    onChange={handlePasswordChange}
+                    required
+                  />
+                  <label htmlFor="currentPasswordInput" className="text-muted">Current Password</label>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword((prev) => !prev)}
+                  className="btn btn-link text-muted position-absolute top-50 end-0 translate-middle-y me-2 text-decoration-none"
+                  aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                >
+                  <i className={`bi ${showCurrentPassword ? 'bi-eye-slash' : 'bi-eye'} fs-5`}></i>
+                </button>
+              </div>
+
+              <div className="row g-3 mb-3">
+                <div className="col-md-6">
+                  <div className="position-relative">
+                    <div className="form-floating">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        className="form-control pe-5 focus-ring"
+                        id="newPasswordInput"
+                        name="newPassword"
+                        placeholder="New Password"
+                        value={passwords.newPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        minLength="8"
+                      />
+                      <label htmlFor="newPasswordInput" className="text-muted">New Password</label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((prev) => !prev)}
+                      className="btn btn-link text-muted position-absolute top-50 end-0 translate-middle-y me-2 text-decoration-none"
+                      aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                    >
+                      <i className={`bi ${showNewPassword ? 'bi-eye-slash' : 'bi-eye'} fs-5`}></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="col-md-6">
+                  <div className="position-relative">
+                    <div className="form-floating">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        className="form-control pe-5 focus-ring"
+                        id="confirmPasswordInput"
+                        name="confirmPassword"
+                        placeholder="Confirm New Password"
+                        value={passwords.confirmPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        minLength="8"
+                      />
+                      <label htmlFor="confirmPasswordInput" className="text-muted">Confirm New Password</label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="btn btn-link text-muted position-absolute top-50 end-0 translate-middle-y me-2 text-decoration-none"
+                      aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    >
+                      <i className={`bi ${showConfirmPassword ? 'bi-eye-slash' : 'bi-eye'} fs-5`}></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Password Strength Meter & Checklist */}
               <div className="mb-3">
-                <label className="form-label fw-semibold text-secondary">Current Password</label>
-                <div className="input-group">
-                  <input type={showPasswords ? "text" : "password"} className="form-control border-end-0 focus-ring" name="currentPassword" value={passwords.currentPassword} onChange={handlePasswordChange} required />
-                  <button className="btn btn-outline-secondary border-start-0" type="button" onClick={() => setShowPasswords(!showPasswords)}><i className={`bi ${showPasswords ? 'bi-eye-slash' : 'bi-eye'}`}></i></button>
+                <div className="d-flex justify-content-between align-items-center mb-1">
+                  <span className="small fw-semibold text-secondary">Password Strength</span>
+                  <span
+                    className="small fw-semibold"
+                    style={{ color: passwords.newPassword ? passwordStrength.color : 'var(--text-muted)' }}
+                  >
+                    {passwordStrength.label}
+                  </span>
+                </div>
+                <div
+                  className="w-100 rounded-pill overflow-hidden mb-2"
+                  style={{ height: '6px', backgroundColor: 'var(--bg-neutral-light)' }}
+                >
+                  <div
+                    className="h-100 rounded-pill"
+                    style={{
+                      width: `${passwordStrength.percent}%`,
+                      backgroundColor: passwordStrength.color,
+                      transition: 'width 0.25s ease, background-color 0.25s ease'
+                    }}
+                  />
+                </div>
+
+                <div className="d-flex flex-column gap-1 mt-2">
+                  <div className="small d-flex align-items-center" style={{ color: hasMinLength ? 'var(--bs-success)' : 'var(--text-muted)' }}>
+                    <i className={`bi ${hasMinLength ? 'bi-check-circle-fill text-success' : 'bi-circle'} me-2`}></i>
+                    <span>Use at least 8 characters.</span>
+                  </div>
+                  <div className="small d-flex align-items-center" style={{ color: hasNonWhitespace ? 'var(--bs-success)' : 'var(--text-muted)' }}>
+                    <i className={`bi ${hasNonWhitespace ? 'bi-check-circle-fill text-success' : 'bi-circle'} me-2`}></i>
+                    <span>At least one non-whitespace character</span>
+                  </div>
                 </div>
               </div>
-              <div className="row">
-                <div className="col-md-6 mb-3">
-                  <label className="form-label fw-semibold text-secondary">New Password</label>
-                  <input type={showPasswords ? "text" : "password"} className="form-control focus-ring" name="newPassword" value={passwords.newPassword} onChange={handlePasswordChange} required minLength="6" />
-                </div>
-                <div className="col-md-6 mb-4">
-                  <label className="form-label fw-semibold text-secondary">Confirm Password</label>
-                  <input type={showPasswords ? "text" : "password"} className="form-control focus-ring" name="confirmPassword" value={passwords.confirmPassword} onChange={handlePasswordChange} required minLength="6" />
-                </div>
+
+              <div className="d-flex justify-content-end mt-3">
+                <button
+                  type="submit"
+                  className="btn btn-primary fw-bold px-4 py-2 rounded-3 shadow-sm"
+                  disabled={!passwords.currentPassword || !hasMinLength || !hasNonWhitespace || !passwords.confirmPassword}
+                >
+                  Update Password
+                </button>
               </div>
-              <button type="submit" className="btn btn-primary w-100 fw-bold px-4 shadow-sm" disabled={!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword}>Update Password</button>
             </form>
           </div>
 

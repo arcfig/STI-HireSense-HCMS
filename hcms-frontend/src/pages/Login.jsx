@@ -8,7 +8,7 @@ function Login({ onLogin }) {
   // Initialize navigation to prevent crashes after login
   const navigate = useNavigate();
 
-  // 'view' can be 'login', 'register', or 'forgot'
+  // 'view' can be 'login', 'register', 'forgot', or '2fa'
   const [view, setView] = useState('login');
 
   // 1. Expanded credentials to hold the new AI and 2FA data
@@ -35,6 +35,93 @@ function Login({ onLogin }) {
   });
   const [isVerifying2FA, setIsVerifying2FA] = useState(false);
   const [isResending2FA, setIsResending2FA] = useState(false);
+
+  // 4. State for Self-Service Forgot Password via Email OTP
+  const [forgotStep, setForgotStep] = useState('request'); // 'request' | 'verify'
+  const [forgotData, setForgotData] = useState({
+    identifier: '',
+    username: '',
+    maskedEmail: '',
+    code: '',
+    newPassword: '',
+    confirmPassword: '',
+    deliveryMode: 'smtp'
+  });
+  const [isForgotSubmitting, setIsForgotSubmitting] = useState(false);
+
+  const handleRequestResetCode = async (e) => {
+    if (e) e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    setIsForgotSubmitting(true);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: forgotData.identifier.trim() || forgotData.username })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setForgotData((prev) => ({
+          ...prev,
+          username: data.username,
+          maskedEmail: data.maskedEmail || 'your email',
+          code: '',
+          deliveryMode: data.deliveryMode || 'smtp'
+        }));
+        setForgotStep('verify');
+        setSuccessMsg(data.message || 'Password reset code sent to your email.');
+      } else {
+        setError(data.error || 'Could not send password reset code.');
+      }
+    } catch {
+      setError('Server error while requesting password reset code.');
+    } finally {
+      setIsForgotSubmitting(false);
+    }
+  };
+
+  const handleConfirmPasswordReset = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (forgotData.newPassword !== forgotData.confirmPassword) {
+      return setError('New passwords do not match.');
+    }
+    if (forgotData.newPassword.length < 8 || !/\S/.test(forgotData.newPassword)) {
+      return setError('New password must be at least 8 characters and contain at least one non-whitespace character.');
+    }
+
+    setIsForgotSubmitting(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: forgotData.username,
+          code: forgotData.code.trim(),
+          newPassword: forgotData.newPassword
+        })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setView('login');
+        setForgotStep('request');
+        setCredentials((prev) => ({ ...prev, username: forgotData.username, password: '' }));
+        setSuccessMsg(data.message || 'Password reset successful! You can now sign in.');
+      } else {
+        setError(data.error || 'Failed to reset password.');
+      }
+    } catch {
+      setError('Server error during password reset.');
+    } finally {
+      setIsForgotSubmitting(false);
+    }
+  };
 
   const handleVerify2FA = async (e) => {
     e.preventDefault();
@@ -137,7 +224,7 @@ function Login({ onLogin }) {
       const data = await verifyRes.json();
 
       if (verifyRes.ok && data.user && data.token) {
-        setSuccessMsg("Biometric login successful!");
+        setSuccessMsg("Passkey login successful!");
         const secureUserData = {
           ...data.user,
           token: data.token
@@ -145,11 +232,11 @@ function Login({ onLogin }) {
         onLogin(secureUserData);
         navigate('/');
       } else {
-        throw new Error(data.error || 'Failed to verify biometric login.');
+        throw new Error(data.error || 'Failed to verify Passkey login.');
       }
     } catch (error) {
       console.error(error);
-      setError(error.message || 'Error during biometric login.');
+      setError(error.message || 'Error during Passkey login.');
     } finally {
       setIsBiometricLogin(false);
     }
@@ -167,6 +254,17 @@ function Login({ onLogin }) {
     setView(newView);
     setError('');
     setSuccessMsg('');
+    setShowPassword(false);
+    setForgotStep('request');
+    setForgotData({
+      identifier: '',
+      username: '',
+      maskedEmail: '',
+      code: '',
+      newPassword: '',
+      confirmPassword: '',
+      deliveryMode: 'smtp'
+    });
     setCredentials({ name: '', username: '', password: '', confirmPassword: '', department: '', email: '', phoneNumber: '' });
   };
 
@@ -223,15 +321,14 @@ function Login({ onLogin }) {
       if (credentials.password !== credentials.confirmPassword) {
         return setError("Passwords do not match. Please try again.");
       }
-      if (credentials.password.length < 6) {
-        return setError("Password must be at least 6 characters long.");
+      if (credentials.password.length < 8 || !/\S/.test(credentials.password)) {
+        return setError("Password must be at least 8 characters and contain at least one non-whitespace character.");
       }
     }
 
     // Determine the correct backend endpoint
     let endpoint = '/api/auth/login';
     if (view === 'register') endpoint = '/api/auth/register';
-    if (view === 'forgot') endpoint = '/api/auth/forgot-password';
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}${endpoint}`, {
@@ -244,10 +341,10 @@ function Login({ onLogin }) {
 
       if (response.ok) {
         if (view === 'register') {
-          setSuccessMsg("Account created! You can now sign in.");
+          const createdUsername = credentials.username;
           switchView('login');
-        } else if (view === 'forgot') {
-          setSuccessMsg(data.message);
+          setCredentials(prev => ({ ...prev, username: createdUsername }));
+          setSuccessMsg("Account created! You can now sign in.");
         } else if (data.requiresTwoFactor) {
           setTwoFactorData({
             username: data.username || credentials.username,
@@ -312,7 +409,7 @@ function Login({ onLogin }) {
             {view === 'register'
               ? "Create your faculty account"
               : view === 'forgot'
-                ? "Reset your password"
+                ? "Reset your account password"
                 : view === '2fa'
                   ? "Two-Factor Security Verification"
                   : "Sign in to your account"}
@@ -386,6 +483,142 @@ function Login({ onLogin }) {
                 {isResending2FA ? 'Sending new code...' : 'Resend 6-Digit Code'}
               </button>
             </form>
+          ) : view === 'forgot' ? (
+            forgotStep === 'request' ? (
+              <form onSubmit={handleRequestResetCode}>
+                <div className="text-center mb-3">
+                  <div
+                    className="d-inline-flex align-items-center justify-content-center rounded-circle mb-2"
+                    style={{ width: '52px', height: '52px', backgroundColor: 'rgba(41, 176, 90, 0.15)', color: '#4ade80' }}
+                  >
+                    <i className="bi bi-key-fill fs-3"></i>
+                  </div>
+                  <p className="text-white-50 small mb-0">
+                    Enter your System Username or registered Email Address to receive a 6-digit password reset code.
+                  </p>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label small fw-bold text-white-50 text-uppercase">
+                    Username or Email Address
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control glass-input"
+                    placeholder="e.g., henry.garcia or faculty@sti.edu"
+                    value={forgotData.identifier}
+                    onChange={(e) => setForgotData((prev) => ({ ...prev, identifier: e.target.value }))}
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isForgotSubmitting || !forgotData.identifier.trim()}
+                  className="btn btn-primary w-100 fw-bold py-2 shadow-sm fs-5 mt-2"
+                >
+                  {isForgotSubmitting ? (
+                    <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending Code...</>
+                  ) : (
+                    <><i className="bi bi-envelope-paper-fill me-2"></i>Send 6-Digit Reset Code</>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleConfirmPasswordReset}>
+                <div className="text-center mb-3">
+                  <p className="text-white-50 small mb-1">
+                    Enter the 6-digit reset code sent to
+                  </p>
+                  <p className="text-white fw-bold mb-0">{forgotData.maskedEmail}</p>
+                  {forgotData.deliveryMode === 'console' && (
+                    <small className="text-warning d-block mt-1">
+                      <i className="bi bi-terminal me-1"></i>Local Dev Mode: check the backend terminal for your 6-digit code.
+                    </small>
+                  )}
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label small fw-bold text-white-50 text-uppercase">6-Digit Reset Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    className="form-control glass-input text-center fw-bold font-monospace py-2"
+                    style={{ letterSpacing: '0.45em', fontSize: '1.3rem' }}
+                    placeholder="000000"
+                    value={forgotData.code}
+                    onChange={(e) =>
+                      setForgotData((prev) => ({
+                        ...prev,
+                        code: e.target.value.replace(/\D/g, '').slice(0, 6)
+                      }))
+                    }
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label small fw-bold text-white-50 text-uppercase">New Password</label>
+                  <div className="d-flex gap-2">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      className="form-control glass-input"
+                      placeholder="At least 8 characters"
+                      value={forgotData.newPassword}
+                      onChange={(e) => setForgotData((prev) => ({ ...prev, newPassword: e.target.value }))}
+                      minLength={8}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="btn glass-btn-outline d-flex align-items-center justify-content-center px-3"
+                      onClick={() => setShowPassword(!showPassword)}
+                      title={showPassword ? "Hide Password" : "Show Password"}
+                    >
+                      <i className={`bi ${showPassword ? 'bi-eye-slash-fill' : 'bi-eye-fill'}`}></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label small fw-bold text-white-50 text-uppercase">Confirm New Password</label>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    className="form-control glass-input"
+                    placeholder="Re-enter new password"
+                    value={forgotData.confirmPassword}
+                    onChange={(e) => setForgotData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                    minLength={8}
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isForgotSubmitting || forgotData.code.length !== 6 || forgotData.newPassword.length < 8}
+                  className="btn btn-primary w-100 fw-bold py-2 shadow-sm fs-5 mt-2"
+                >
+                  {isForgotSubmitting ? (
+                    <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Resetting Password...</>
+                  ) : (
+                    <><i className="bi bi-check2-circle me-2"></i>Reset Password</>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleRequestResetCode()}
+                  disabled={isForgotSubmitting}
+                  className="btn glass-btn-outline w-100 fw-semibold py-2 shadow-sm mt-2"
+                >
+                  Resend 6-Digit Code
+                </button>
+              </form>
+            )
           ) : (
           <form onSubmit={handleSubmit}>
             {/* 1. AI SCANNER - ONLY ON REGISTER */}
@@ -449,7 +682,7 @@ function Login({ onLogin }) {
                     </select>
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label small fw-bold text-white-50">Email (Optional)</label>
+                    <label className="form-label small fw-bold text-white-50">Email (For 2FA & Recovery)</label>
                     <input type="email" className="form-control glass-input" name="email" value={credentials.email} onChange={handleChange} />
                   </div>
                   <div className="col-md-6">
@@ -461,7 +694,18 @@ function Login({ onLogin }) {
 
               {/* Password (Full width on Login, Half width on Register) */}
               <div className={view === 'register' ? "col-md-6" : "col-12"}>
-                <label className="form-label small fw-bold text-white-50 text-uppercase">Password</label>
+                <div className="d-flex justify-content-between align-items-center">
+                  <label className="form-label small fw-bold text-white-50 text-uppercase mb-1">Password</label>
+                  {view === 'login' && (
+                    <a
+                      href="#"
+                      className="small text-white-50 text-decoration-none hover-white mb-1"
+                      onClick={(e) => { e.preventDefault(); switchView('forgot'); }}
+                    >
+                      Forgot password?
+                    </a>
+                  )}
+                </div>
                 <div className="d-flex gap-2">
                   <input
                     type={showPassword ? "text" : "password"}
@@ -485,7 +729,7 @@ function Login({ onLogin }) {
               {/* Confirm Password (Register Only) */}
               {view === 'register' && (
                 <div className="col-md-6">
-                  <label className="form-label small fw-bold text-white-50 text-uppercase">Confirm Password</label>
+                  <label className="form-label small fw-bold text-white-50 text-uppercase mb-1">Confirm Password</label>
                   <div className="d-flex gap-2">
                     <input
                       type={showPassword ? "text" : "password"}
@@ -535,7 +779,7 @@ function Login({ onLogin }) {
           {/* Navigation Toggles */}
           <div className="mt-4 text-center">
             {view === 'login' ? (
-              <span className="text-white-50 small">Don't have an account? <a href="#" className="fw-bold text-white text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('register'); }}>Sign up here</a></span>
+              <span className="text-white-50 small">Don&apos;t have an account? <a href="#" className="fw-bold text-white text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('register'); }}>Sign up here</a></span>
             ) : (
               <span className="text-white-50 small">Return to <a href="#" className="fw-bold text-white text-decoration-none" onClick={(e) => { e.preventDefault(); switchView('login'); }}>Sign In</a></span>
             )}
