@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { confirmAction, showAlert } from '../utils/swal';
+import ExportDropdownButton from '../components/ExportDropdownButton';
 
 const SubjectManager = () => {
   const [hierarchy, setHierarchy] = useState({});
@@ -288,32 +289,20 @@ const SubjectManager = () => {
 
           <button
             type="button"
-            className="btn btn-sm btn-outline-primary fw-semibold shadow-sm px-3 py-2"
+            className="btn btn-sm btn-outline-success fw-semibold shadow-sm px-3 py-2"
             onClick={() => setShowImportModal(true)}
           >
             <i className="bi bi-file-earmark-arrow-up me-1"></i>Import Curriculum
           </button>
 
-          <div className="btn-group shadow-sm" role="group" aria-label="Export Curriculum">
-            <button
-              type="button"
-              className="btn btn-sm btn-success fw-semibold px-3 py-2"
-              onClick={() => handleExportCurriculum('xlsx', false)}
-              disabled={exportingFormat !== null}
-              title="Export full curriculum as Excel (.xlsx)"
-            >
-              <i className="bi bi-file-earmark-spreadsheet me-1"></i>Export .XLSX
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-success fw-semibold px-2 py-2"
-              onClick={() => handleExportCurriculum('csv', false)}
-              disabled={exportingFormat !== null}
-              title="Export full curriculum as CSV (.csv)"
-            >
-              .CSV
-            </button>
-          </div>
+          <ExportDropdownButton
+            label="Export Curriculum"
+            formats={['xlsx', 'csv']}
+            defaultFormat="xlsx"
+            storageKey="hireSenseCurriculumExportFormat"
+            isExporting={exportingFormat !== null}
+            onExport={(fmt) => handleExportCurriculum(fmt, false)}
+          />
         </div>
       </div>
 

@@ -162,10 +162,19 @@ button[type="submit"] {
 }
 
 .btn-outline-primary,
-.btn-outline-secondary {
+.btn-outline-secondary,
+.btn-outline-success {
   border-color: var(--brand-primary-bg) !important;
   color: var(--brand-primary-bg) !important;
-  background-color: transparent;
+  background-color: var(--surface-neutral) !important;
+}
+
+[data-bs-theme="dark"] .btn-outline-primary,
+[data-bs-theme="dark"] .btn-outline-secondary,
+[data-bs-theme="dark"] .btn-outline-success {
+  border-color: #29b05a !important;
+  color: #4ade80 !important;
+  background-color: var(--surface-neutral) !important;
 }
 
 /* Hover, Focus, and Active States for all interactive buttons */
@@ -204,11 +213,29 @@ button[type="submit"]:disabled {
 .btn-outline-secondary:hover,
 .btn-outline-secondary:focus,
 .btn-outline-secondary:active,
-.btn-outline-secondary.active {
-  filter: brightness(0.9) !important;
+.btn-outline-secondary.active,
+.btn-outline-success:hover,
+.btn-outline-success:focus,
+.btn-outline-success:active,
+.btn-outline-success.active {
+  filter: none !important;
   background-color: var(--brand-primary-bg) !important;
-  color: var(--surface-neutral) !important;
+  color: #ffffff !important;
   border-color: var(--brand-primary-bg) !important;
+}
+
+[data-bs-theme="dark"] .btn-outline-primary:hover,
+[data-bs-theme="dark"] .btn-outline-primary:focus,
+[data-bs-theme="dark"] .btn-outline-primary:active,
+[data-bs-theme="dark"] .btn-outline-secondary:hover,
+[data-bs-theme="dark"] .btn-outline-secondary:focus,
+[data-bs-theme="dark"] .btn-outline-secondary:active,
+[data-bs-theme="dark"] .btn-outline-success:hover,
+[data-bs-theme="dark"] .btn-outline-success:focus,
+[data-bs-theme="dark"] .btn-outline-success:active {
+  background-color: #1e8c45 !important;
+  color: #ffffff !important;
+  border-color: #4ade80 !important;
 }
 
 /* 6. Badges and Iconography */

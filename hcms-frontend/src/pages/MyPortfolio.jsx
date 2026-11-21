@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { showAlert } from '../utils/swal';
+import { exportPortfolioByFormat } from '../utils/portfolioExport';
+import ExportDropdownButton from '../components/ExportDropdownButton';
 
 const MyPortfolio = ({ user }) => {
   // 1. State Management
@@ -161,15 +163,27 @@ const MyPortfolio = ({ user }) => {
   return (
     <div className="d-flex flex-column pb-5">
       {/* Header Section */}
-      <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+      <div className="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
         <div>
           <h2 className="fw-bold text-primary mb-0">{facultyData.firstName} {facultyData.lastName}</h2>
           <p className="text-muted mb-0">Department: <strong>{facultyData.department}</strong></p>
         </div>
-        <div className="text-sm-end text-muted small">
-          Report Generated<br/>
-          <strong>{new Date().toLocaleDateString()}</strong>
-        </div>
+        <ExportDropdownButton
+          label="Export Portfolio"
+          formats={['pdf', 'xlsx', 'csv']}
+          defaultFormat="pdf"
+          storageKey="hireSensePortfolioExportFormat"
+          onExport={(fmt) =>
+            exportPortfolioByFormat(fmt, {
+              fullName: `${facultyData.firstName} ${facultyData.lastName}`,
+              department: facultyData.department,
+              overallRating: displayedRating,
+              skills: allVerifiedSkills,
+              eligibleSubjects: facultyData.eligibleSubjects || [],
+              documents: userDocuments
+            })
+          }
+        />
       </div>
 
       {/* Analytics & Skills Row */}

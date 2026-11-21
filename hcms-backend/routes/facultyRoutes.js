@@ -874,6 +874,137 @@ router.delete('/subjects/:courseCode', verifyToken, auditLogger(), requireRole([
 });
 
 // --------------------------------------------------------
+// ROUTE: Export Single Faculty 201 Portfolio as .XLSX (Secured: All logged-in users)
+// --------------------------------------------------------
+router.post('/portfolio/export-xlsx', verifyToken, auditLogger(), async (req, res) => {
+  try {
+    const {
+      fullName = 'Faculty',
+      department = 'Unassigned',
+      overallRating = 'N/A',
+      skills = [],
+      eligibleSubjects = [],
+      documents = []
+    } = req.body || {};
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('201 Portfolio Dossier');
+
+    sheet.columns = [
+      { header: 'Document Type', key: 'documentType', width: 22 },
+      { header: 'Document Title', key: 'documentTitle', width: 34 },
+      { header: 'Issuing Institution', key: 'issuingInstitution', width: 28 },
+      { header: 'Date Issued', key: 'issued', width: 16 },
+      { header: 'Expiration Date', key: 'expires', width: 16 },
+      { header: 'Academic Period', key: 'period', width: 18 },
+      { header: 'Evaluation Rating', key: 'rating', width: 18 },
+      { header: 'Verified Skills / Tags', key: 'tags', width: 34 }
+    ];
+
+    // Summary rows at top
+    sheet.spliceRows(1, 0,
+      ['HireSense — Official Faculty 201 Portfolio Dossier'],
+      ['Faculty Name', fullName, 'Department', department],
+      ['Evaluation Score', overallRating && Number(overallRating) > 0 ? `${overallRating} / 5.00` : 'N/A', 'Generated', new Date().toLocaleDateString()],
+      ['Eligible Subjects', Array.isArray(eligibleSubjects) && eligibleSubjects.length > 0 ? eligibleSubjects.join(', ') : 'None'],
+      ['Verified Skills', Array.isArray(skills) && skills.length > 0 ? skills.join(', ') : 'None'],
+      []
+    );
+
+    sheet.getRow(1).font = { bold: true, size: 13, color: { argb: 'FF08612F' } };
+    [2, 3, 4, 5].forEach(r => {
+      sheet.getRow(r).getCell(1).font = { bold: true };
+      sheet.getRow(r).getCell(3).font = { bold: true };
+    });
+
+    const headerRow = sheet.getRow(7);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF08612F' }
+    };
+
+    documents.forEach(doc => {
+      const issued = doc.dateReceived
+        ? String(doc.dateReceived).split('T')[0]
+        : doc.createdAt
+        ? new Date(doc.createdAt).toLocaleDateString()
+        : 'N/A';
+      const expires = doc.expirationDate ? String(doc.expirationDate).split('T')[0] : 'N/A';
+      const period = [doc.academicYear, doc.term].filter(Boolean).join(' ') || 'N/A';
+      const rating = doc.evaluationRating ?? 'N/A';
+      const tags = Array.isArray(doc.tags) ? doc.tags.filter(Boolean).join(', ') : '';
+
+      sheet.addRow({
+        documentType: doc.documentType || '',
+        documentTitle: doc.documentTitle || '',
+        issuingInstitution: doc.issuingInstitution || 'N/A',
+        issued,
+        expires,
+        period,
+        rating,
+        tags
+      });
+    });
+
+    const safeName = String(fullName).trim().replace(/[^a-zA-Z0-9_-]+/g, '_');
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="HireSense_Portfolio_${safeName}.xlsx"`);
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error("Portfolio XLSX Export Error:", error);
+    res.status(500).json({ error: "Failed to export portfolio workbook." });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Export Faculty Directory Summary as .XLSX (Secured: All logged-in users)
+// --------------------------------------------------------
+router.post('/directory/export-xlsx', verifyToken, auditLogger(), async (req, res) => {
+  try {
+    const { facultyList = [] } = req.body || {};
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Faculty Directory');
+
+    sheet.columns = [
+      { header: 'Faculty Name', key: 'fullName', width: 28 },
+      { header: 'Department', key: 'department', width: 26 },
+      { header: 'Verified Credentials', key: 'documentCount', width: 22 },
+      { header: 'Approved Subject Eligibilities', key: 'eligibleSubjects', width: 34 },
+      { header: 'Verified Skills', key: 'tags', width: 42 }
+    ];
+
+    sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    sheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF08612F' }
+    };
+
+    facultyList.forEach(f => {
+      sheet.addRow({
+        fullName: f.fullName || '',
+        department: f.department || '',
+        documentCount: f.documentCount ?? 0,
+        eligibleSubjects: Array.isArray(f.eligibleSubjects) ? f.eligibleSubjects.join(', ') : '',
+        tags: Array.isArray(f.tags) ? f.tags.join(', ') : ''
+      });
+    });
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="HireSense_Faculty_Directory.xlsx"`);
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error("Directory XLSX Export Error:", error);
+    res.status(500).json({ error: "Failed to export directory workbook." });
+  }
+});
+
+// --------------------------------------------------------
 // ROUTE: Get Eligible Faculty by Course Code (Secured: Admins and Heads)
 // --------------------------------------------------------
 router.get('/subjects/:courseCode/faculty', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {

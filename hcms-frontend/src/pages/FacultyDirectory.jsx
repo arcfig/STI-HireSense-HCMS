@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
 import { showAlert } from '../utils/swal';
+import { exportPortfolioByFormat, exportDirectoryByFormat } from '../utils/portfolioExport';
+import ExportDropdownButton from '../components/ExportDropdownButton';
 
 const FacultyDirectory = () => {
   const [directoryData, setDirectoryData] = useState([]);
@@ -244,11 +246,22 @@ const FacultyDirectory = () => {
   return (
     <div className="d-flex flex-column pb-4">
 
-      <div className="mb-4 flex-shrink-0">
-        <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
-          <i className="bi bi-people-fill text-primary me-2"></i>Faculty Directory
-        </h2>
-        <p className="text-muted mb-0">Browse and filter verified institutional competencies.</p>
+      <div className="mb-4 flex-shrink-0 d-flex justify-content-between align-items-start align-items-md-center flex-wrap gap-3">
+        <div>
+          <h2 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>
+            <i className="bi bi-people-fill text-primary me-2"></i>Faculty Directory
+          </h2>
+          <p className="text-muted mb-0">Browse, filter, and export verified institutional competencies.</p>
+        </div>
+        {filteredData.length > 0 && (
+          <ExportDropdownButton
+            label="Export Directory"
+            formats={['xlsx', 'csv', 'pdf']}
+            defaultFormat="xlsx"
+            storageKey="hireSenseDirectoryExportFormat"
+            onExport={(fmt) => exportDirectoryByFormat(fmt, filteredData)}
+          />
+        )}
       </div>
 
         <div className="card shadow-sm border-0 mb-3" style={{ backgroundColor: 'var(--surface-neutral)' }}>
@@ -378,7 +391,7 @@ const FacultyDirectory = () => {
           <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content border-0 shadow-lg my-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
 
-              <div className="modal-header justify-content-between gap-2 px-3 px-md-4 py-3 sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-neutral)' }}>
+              <div className="modal-header justify-content-between align-items-center flex-wrap gap-2 px-3 px-md-4 py-3 sticky-top shadow-sm" style={{ borderBottom: '1px solid var(--border-subtle)', backgroundColor: 'var(--surface-neutral)' }}>
                 <div className="d-flex align-items-center min-w-0">
                   <div className="rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0" style={{ width: '50px', height: '50px', fontSize: '1.2rem', backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontWeight: 600 }}>
                     {getInitials(selectedFaculty.fullName)}
@@ -388,7 +401,25 @@ const FacultyDirectory = () => {
                     <p className="text-muted mb-0 small">Department: <strong>{selectedFaculty.department}</strong></p>
                   </div>
                 </div>
-                <button type="button" className="btn-close flex-shrink-0 ms-auto align-self-start mt-1" onClick={closeProfile} aria-label="Close"></button>
+                <div className="d-flex align-items-center gap-2 ms-auto">
+                  <ExportDropdownButton
+                    label="Export Portfolio"
+                    formats={['pdf', 'xlsx', 'csv']}
+                    defaultFormat="pdf"
+                    storageKey="hireSensePortfolioExportFormat"
+                    onExport={(fmt) =>
+                      exportPortfolioByFormat(fmt, {
+                        fullName: selectedFaculty.fullName,
+                        department: selectedFaculty.department,
+                        overallRating: displayedRating,
+                        skills: selectedFaculty.tags || [],
+                        eligibleSubjects: selectedFaculty.eligibleSubjects || [],
+                        documents: selectedFaculty.documents || []
+                      })
+                    }
+                  />
+                  <button type="button" className="btn-close flex-shrink-0 ms-1" onClick={closeProfile} aria-label="Close"></button>
+                </div>
               </div>
 
               <div className="modal-body p-3 p-md-4">
