@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
 
-function MyProfile({ user }) {
+function MyProfile({ user, onUpdateUser }) {
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [message, setMessage] = useState({ text: '', type: '' });
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -67,11 +67,16 @@ function MyProfile({ user }) {
   const syncUserSession = (updatedUserFields) => {
     try {
       const existing = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
-      sessionStorage.setItem('hireSenseUser', JSON.stringify({
+      const mergedUser = {
         ...existing,
+        ...user,
         ...updatedUserFields,
         token: user.token
-      }));
+      };
+      sessionStorage.setItem('hireSenseUser', JSON.stringify(mergedUser));
+      if (typeof onUpdateUser === 'function') {
+        onUpdateUser(mergedUser);
+      }
     } catch {
       // Ignore storage serialization errors
     }
@@ -376,145 +381,223 @@ function MyProfile({ user }) {
 
       <div className="row g-4">
 
-        {/* Card 1: Account Details & Email 2FA */}
+        {/* Card 1 Column: Account Details & Email 2FA */}
         <div className="col-md-5">
+          {/* Account Details Card */}
           <div className="card shadow-sm border-0 rounded-3 p-4 mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
-            <h5 className="fw-bold text-secondary mb-4 border-bottom pb-2">
-              <i className="bi bi-person-badge text-primary me-2"></i> Account Details
-            </h5>
+            <div className="d-flex align-items-start gap-3 mb-4">
+              <div
+                className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  backgroundColor: 'rgba(8, 97, 47, 0.1)',
+                  color: 'var(--brand-primary-bg)'
+                }}
+              >
+                <i className="bi bi-person-badge-fill fs-4"></i>
+              </div>
+              <div>
+                <div className="text-muted fw-bold text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+                  Account
+                </div>
+                <h5 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>Profile Details</h5>
+                <p className="text-muted small mb-0">
+                  Manage your identity, recovery email, and system access level.
+                </p>
+              </div>
+            </div>
 
-            <div className="mb-3">
-              <label className="text-muted small fw-bold text-uppercase">Full Name</label>
-              <p className="fs-5 fw-semibold mb-0" style={{ color: 'var(--text-main)' }}>{user?.name}</p>
+            <div
+              className="d-flex justify-content-between align-items-center gap-2 p-3 rounded-3 mb-3"
+              style={{ backgroundColor: 'var(--bg-neutral-light)', border: '1px solid var(--border-subtle)' }}
+            >
+              <div className="min-w-0">
+                <div className="text-muted fw-bold text-uppercase" style={{ fontSize: '0.7rem', letterSpacing: '0.05em' }}>
+                  Full Name
+                </div>
+                <div className="fw-bold text-truncate" style={{ color: 'var(--text-main)', fontSize: '1.05rem' }}>
+                  {user?.name}
+                </div>
+              </div>
+              <span className={`badge ${['hr', 'admin'].includes(user?.role) ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase flex-shrink-0`}>
+                {user?.role?.replace('_', ' ')}
+              </span>
             </div>
 
             {profileMessage.text && (
-              <div className={`alert alert-${profileMessage.type} py-2 small border-0 shadow-sm`}>
+              <div className={`alert alert-${profileMessage.type} py-2 small border-0 shadow-sm mb-3`}>
+                <i className={`bi ${profileMessage.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>
                 {profileMessage.text}
               </div>
             )}
 
             <form onSubmit={handleProfileSubmit}>
-              <div className="mb-3">
-                <label className="text-muted small fw-bold text-uppercase">System Username</label>
-                <input type="text" className="form-control" name="username" value={profileData.username} onChange={handleProfileChange} required />
+              <div className="form-floating mb-3">
+                <input
+                  type="text"
+                  className="form-control focus-ring"
+                  id="profileUsernameInput"
+                  name="username"
+                  placeholder="System Username"
+                  value={profileData.username}
+                  onChange={handleProfileChange}
+                  required
+                />
+                <label htmlFor="profileUsernameInput" className="text-muted">System Username</label>
               </div>
 
-              <div className="mb-3">
-                <label className="text-muted small fw-bold text-uppercase">Email Address (For 2FA)</label>
-                <input type="email" className="form-control" name="email" value={profileData.email} onChange={handleProfileChange} placeholder="e.g., faculty@sti.edu" />
+              <div className="form-floating mb-3">
+                <input
+                  type="email"
+                  className="form-control focus-ring"
+                  id="profileEmailInput"
+                  name="email"
+                  placeholder="Email Address (For 2FA & Recovery)"
+                  value={profileData.email}
+                  onChange={handleProfileChange}
+                />
+                <label htmlFor="profileEmailInput" className="text-muted">Email Address (For 2FA &amp; Recovery)</label>
               </div>
 
-              <div className="mb-4">
-                <label className="text-muted small fw-bold text-uppercase">SMS Number (Optional)</label>
-                <input type="text" className="form-control" name="phoneNumber" value={profileData.phoneNumber} onChange={handleProfileChange} placeholder="e.g., 09123456789" />
+              <div className="form-floating mb-3">
+                <input
+                  type="text"
+                  className="form-control focus-ring"
+                  id="profilePhoneInput"
+                  name="phoneNumber"
+                  placeholder="SMS Number (Optional)"
+                  value={profileData.phoneNumber}
+                  onChange={handleProfileChange}
+                />
+                <label htmlFor="profilePhoneInput" className="text-muted">SMS Number (Optional)</label>
               </div>
 
-              <button type="submit" className="btn btn-primary btn-sm w-100 fw-bold shadow-sm mb-4">
-                <i className="bi bi-save me-2"></i> Save Profile Details
-              </button>
+              <div className="d-flex justify-content-end">
+                <button type="submit" className="btn btn-primary fw-bold px-4 py-2 rounded-3 shadow-sm">
+                  <i className="bi bi-save me-2"></i>Save Profile Details
+                </button>
+              </div>
             </form>
+          </div>
 
-            {/* Email 6-Digit OTP Two-Factor Authentication Section */}
-            <div className="pt-3 mb-4 border-top">
-              <div className="d-flex justify-content-between align-items-center mb-2">
+          {/* Email 6-Digit OTP Two-Factor Authentication Card */}
+          <div className="card shadow-sm border-0 rounded-3 p-4 mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+            <div className="d-flex align-items-start justify-content-between gap-2 mb-3">
+              <div className="d-flex align-items-start gap-3">
+                <div
+                  className="d-flex align-items-center justify-content-center rounded-3 flex-shrink-0"
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    backgroundColor: 'rgba(8, 97, 47, 0.1)',
+                    color: 'var(--brand-primary-bg)'
+                  }}
+                >
+                  <i className="bi bi-envelope-lock-fill fs-4"></i>
+                </div>
                 <div>
-                  <span className="text-muted small fw-bold text-uppercase d-block">Two-Factor Auth (Email OTP)</span>
-                  <small className="text-muted">Require a 6-digit email code when signing in with a password.</small>
+                  <div className="text-muted fw-bold text-uppercase" style={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+                    Security
+                  </div>
+                  <h5 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>Email Two-Factor Auth</h5>
+                  <p className="text-muted small mb-0">
+                    Require a 6-digit email verification code when signing in with a password.
+                  </p>
                 </div>
-                <span className={`badge ${twoFactorEnabled ? 'bg-success' : 'bg-secondary'} px-2 py-1 flex-shrink-0 ms-2`}>
-                  {twoFactorEnabled ? 'ENABLED' : 'DISABLED'}
-                </span>
               </div>
+              <span className={`badge ${twoFactorEnabled ? 'bg-success' : 'bg-secondary'} px-2 py-1 flex-shrink-0`}>
+                {twoFactorEnabled ? 'ENABLED' : 'DISABLED'}
+              </span>
+            </div>
 
-              {twoFactorMessage.text && (
-                <div className={`alert alert-${twoFactorMessage.type} py-2 small border-0 shadow-sm mt-2 mb-2`}>
-                  {twoFactorMessage.text}
-                </div>
-              )}
+            {twoFactorMessage.text && (
+              <div className={`alert alert-${twoFactorMessage.type} py-2 small border-0 shadow-sm mb-3`}>
+                {twoFactorMessage.text}
+              </div>
+            )}
 
-              {twoFactorEnabled ? (
-                <div className="mt-2">
-                  <div className="small text-muted mb-2">
-                    <i className="bi bi-envelope-check-fill text-success me-1"></i>
-                    Active on <strong>{profileData.email}</strong>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleDisable2FA}
-                    disabled={twoFactorLoading}
-                    className="btn btn-outline-danger btn-sm w-100 fw-bold"
-                  >
-                    {twoFactorLoading ? 'Updating...' : 'Disable Email 2FA'}
-                  </button>
+            {twoFactorEnabled ? (
+              <div>
+                <div
+                  className="d-flex align-items-center gap-2 p-3 rounded-3 mb-3 small"
+                  style={{ backgroundColor: 'rgba(8, 97, 47, 0.06)', border: '1px solid rgba(8, 97, 47, 0.2)', color: 'var(--text-main)' }}
+                >
+                  <i className="bi bi-envelope-check-fill text-success fs-5 flex-shrink-0"></i>
+                  <span>Verification codes are sent to <strong>{profileData.email}</strong></span>
                 </div>
-              ) : twoFactorStep === 'verifying' ? (
-                <form onSubmit={handleVerify2FASetup} className="mt-2">
-                  <label className="form-label small fw-semibold text-secondary mb-1">
-                    Enter 6-digit code sent to {twoFactorMaskedEmail}
-                  </label>
-                  <div className="d-flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]{6}"
-                      maxLength={6}
-                      className="form-control form-control-sm text-center fw-bold font-monospace"
-                      style={{ letterSpacing: '0.25em', fontSize: '1rem' }}
-                      placeholder="000000"
-                      value={twoFactorCode}
-                      onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      required
-                    />
-                    <button
-                      type="submit"
-                      disabled={twoFactorLoading || twoFactorCode.length !== 6}
-                      className="btn btn-success btn-sm fw-bold px-3 flex-shrink-0"
-                    >
-                      {twoFactorLoading ? 'Verifying...' : 'Verify'}
-                    </button>
-                  </div>
-                  <div className="d-flex justify-content-between">
-                    <button
-                      type="button"
-                      onClick={handleSend2FASetupCode}
-                      disabled={twoFactorLoading}
-                      className="btn btn-link btn-sm p-0 text-decoration-none"
-                    >
-                      Resend Code
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setTwoFactorStep('idle'); setTwoFactorMessage({ text: '', type: '' }); }}
-                      className="btn btn-link btn-sm p-0 text-muted text-decoration-none"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              ) : (
                 <button
                   type="button"
-                  onClick={handleSend2FASetupCode}
+                  onClick={handleDisable2FA}
                   disabled={twoFactorLoading}
-                  className="btn btn-outline-primary btn-sm w-100 fw-bold mt-2"
+                  className="btn btn-outline-danger btn-sm w-100 fw-bold py-2"
                 >
-                  {twoFactorLoading ? (
-                    <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending Code...</>
-                  ) : (
-                    <><i className="bi bi-shield-check me-1"></i> Enable Email 2FA</>
-                  )}
+                  {twoFactorLoading ? 'Updating...' : 'Disable Email 2FA'}
                 </button>
-              )}
-            </div>
+              </div>
+            ) : twoFactorStep === 'verifying' ? (
+              <form onSubmit={handleVerify2FASetup}>
+                <label className="form-label small fw-semibold text-secondary mb-1">
+                  Enter 6-digit code sent to {twoFactorMaskedEmail}
+                </label>
+                <div className="d-flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    className="form-control form-control-sm text-center fw-bold font-monospace"
+                    style={{ letterSpacing: '0.25em', fontSize: '1rem' }}
+                    placeholder="000000"
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={twoFactorLoading || twoFactorCode.length !== 6}
+                    className="btn btn-success btn-sm fw-bold px-3 flex-shrink-0"
+                  >
+                    {twoFactorLoading ? 'Verifying...' : 'Verify'}
+                  </button>
+                </div>
+                <div className="d-flex justify-content-between">
+                  <button
+                    type="button"
+                    onClick={handleSend2FASetupCode}
+                    disabled={twoFactorLoading}
+                    className="btn btn-link btn-sm p-0 text-decoration-none"
+                  >
+                    Resend Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setTwoFactorStep('idle'); setTwoFactorMessage({ text: '', type: '' }); }}
+                    className="btn btn-link btn-sm p-0 text-muted text-decoration-none"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend2FASetupCode}
+                disabled={twoFactorLoading}
+                className="btn btn-outline-primary w-100 fw-bold py-2"
+              >
+                {twoFactorLoading ? (
+                  <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Sending Code...</>
+                ) : (
+                  <><i className="bi bi-shield-check me-2"></i>Enable Email 2FA</>
+                )}
+              </button>
+            )}
 
-            <div className="mb-4">
-              <label className="text-muted small fw-bold text-uppercase">Access Level</label>
-              <div><span className={`badge ${['hr', 'admin'].includes(user?.role) ? 'bg-primary' : 'bg-secondary'} px-3 py-2 text-uppercase`}>{user?.role}</span></div>
-            </div>
-
-            <div className="mt-auto pt-4 border-top">
-              <button onClick={handleLogout} className="btn btn-outline-danger fw-bold w-100 shadow-sm"><i className="bi bi-box-arrow-right me-2"></i> Logout</button>
+            <div className="mt-4 pt-3 border-top">
+              <button onClick={handleLogout} className="btn btn-outline-danger fw-bold w-100 shadow-sm">
+                <i className="bi bi-box-arrow-right me-2"></i>Logout
+              </button>
             </div>
           </div>
         </div>

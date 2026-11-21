@@ -109,19 +109,29 @@ router.put('/:id/skills', verifyToken, async (req, res) => {
 router.put('/:id/profile', verifyToken, async (req, res) => {
   try {
     const { username, email, phoneNumber } = req.body;
-    
+    const rawId = req.params.id;
+    const isValidObjectId = /^[a-f\d]{24}$/i.test(String(rawId || ''));
+
+    const currentUser = isValidObjectId
+      ? await User.findById(rawId)
+      : req.user?.username
+        ? await User.findOne({ username: req.user.username })
+        : null;
+
+    if (!currentUser) return res.status(404).json({ error: "User not found." });
+
     const existingUser = await User.findOne({ username });
-    if (existingUser && existingUser._id.toString() !== req.params.id) {
+    if (existingUser && existingUser._id.toString() !== currentUser._id.toString()) {
       return res.status(400).json({ error: "That username is already taken." });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id, 
-      { username, email, phoneNumber }, 
-      { returnDocument: 'after' }
-    ).select('-passwordHash');
-    
-    if (!updatedUser) return res.status(404).json({ error: "User not found." });
+    currentUser.username = username;
+    currentUser.email = email;
+    currentUser.phoneNumber = phoneNumber;
+    await currentUser.save();
+
+    const updatedUser = currentUser.toObject();
+    delete updatedUser.passwordHash;
 
     res.status(200).json({ message: "Profile updated successfully!", user: updatedUser });
   } catch (error) {

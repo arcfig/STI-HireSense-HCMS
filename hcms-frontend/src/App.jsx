@@ -1,22 +1,23 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { APP_NAME } from './config';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import ManageUsers from './pages/ManageUsers';
-import FacultyPortal from './pages/FacultyPortal';
-import HRDashboard from './pages/HRDashboard';
-import MyPortfolio from './pages/MyPortfolio';
-import MyProfile from './pages/MyProfile';
-import Login from './pages/Login';
-import CandidateMatcher from './pages/CandidateMatcher';
-import FacultyDirectory from './pages/FacultyDirectory';
-import UploadCredential from './pages/UploadCredential';
 import './App.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
-import SubjectManager from './pages/SubjectManager';
-import ArchivedUsers from './pages/ArchivedUsers';
-import AuditLogs from './pages/AuditLogs';
 import ErrorBoundary from './ErrorBoundary';
+
+const ManageUsers = lazy(() => import('./pages/ManageUsers'));
+const FacultyPortal = lazy(() => import('./pages/FacultyPortal'));
+const HRDashboard = lazy(() => import('./pages/HRDashboard'));
+const MyPortfolio = lazy(() => import('./pages/MyPortfolio'));
+const MyProfile = lazy(() => import('./pages/MyProfile'));
+const Login = lazy(() => import('./pages/Login'));
+const CandidateMatcher = lazy(() => import('./pages/CandidateMatcher'));
+const FacultyDirectory = lazy(() => import('./pages/FacultyDirectory'));
+const UploadCredential = lazy(() => import('./pages/UploadCredential'));
+const SubjectManager = lazy(() => import('./pages/SubjectManager'));
+const ArchivedUsers = lazy(() => import('./pages/ArchivedUsers'));
+const AuditLogs = lazy(() => import('./pages/AuditLogs'));
 
 const isAdmin = (role) => role === 'admin';
 const isHeadOrAdmin = (role) => ['admin', 'academic_head', 'program_head'].includes(role);
@@ -256,7 +257,17 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
   if (!user) {
     return (
       <div className="w-100 h-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: 'var(--bg-neutral-light)' }}>
-        <Login onLogin={setUser} />
+        <Suspense
+          fallback={
+            <div className="d-flex justify-content-center align-items-center vh-100">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+            </div>
+          }
+        >
+          <Login onLogin={setUser} />
+        </Suspense>
       </div>
     );
   }
@@ -389,20 +400,30 @@ function MainLayout({ user, setUser, theme, toggleTheme }) {
 
           <div className="p-3 p-md-4 flex-grow-1" id="main-scroll-container">
             <ErrorBoundary>
-              <Routes>
-                <Route path="/" element={<FacultyPortal user={user} />} />
-                <Route path="/upload" element={<UploadCredential />} />
-                <Route path="/profile" element={<MyProfile user={user} />} />
-                <Route path="/portfolio" element={hasPortfolioAccess(user.role) ? <MyPortfolio user={user} viewAll={false} /> : <Navigate to="/directory" />} />
-                <Route path="/directory" element={isHeadOrAdmin(user.role) ? <FacultyDirectory /> : <Navigate to="/" />} />
-                <Route path="/ai-matcher" element={isHeadOrAdmin(user.role) ? <CandidateMatcher /> : <Navigate to="/" />} />
-                <Route path="/hr-dashboard" element={isHeadOrAdmin(user.role) ? <HRDashboard user={user} /> : <Navigate to="/" />} />
-                <Route path="/subjects" element={isHeadOrAdmin(user.role) ? <SubjectManager /> : <Navigate to="/" />} />
-                <Route path="/manage-users" element={isAdmin(user.role) ? <ManageUsers currentUser={user} /> : <Navigate to="/" />} />
-                <Route path="/archived-users" element={isAdmin(user.role) ? <ArchivedUsers /> : <Navigate to="/" />} />
-                <Route path="/audit-logs" element={isAdmin(user.role) ? <AuditLogs currentUser={user} /> : <Navigate to="/" />} />
-                <Route path="*" element={<Navigate to="/" />} />
-              </Routes>
+              <Suspense
+                fallback={
+                  <div className="d-flex justify-content-center align-items-center py-5">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Loading page...</span>
+                    </div>
+                  </div>
+                }
+              >
+                <Routes>
+                  <Route path="/" element={<FacultyPortal user={user} />} />
+                  <Route path="/upload" element={<UploadCredential />} />
+                  <Route path="/profile" element={<MyProfile user={user} onUpdateUser={setUser} />} />
+                  <Route path="/portfolio" element={hasPortfolioAccess(user.role) ? <MyPortfolio user={user} viewAll={false} /> : <Navigate to="/directory" />} />
+                  <Route path="/directory" element={isHeadOrAdmin(user.role) ? <FacultyDirectory /> : <Navigate to="/" />} />
+                  <Route path="/ai-matcher" element={isHeadOrAdmin(user.role) ? <CandidateMatcher /> : <Navigate to="/" />} />
+                  <Route path="/hr-dashboard" element={isHeadOrAdmin(user.role) ? <HRDashboard user={user} /> : <Navigate to="/" />} />
+                  <Route path="/subjects" element={isHeadOrAdmin(user.role) ? <SubjectManager /> : <Navigate to="/" />} />
+                  <Route path="/manage-users" element={isAdmin(user.role) ? <ManageUsers currentUser={user} /> : <Navigate to="/" />} />
+                  <Route path="/archived-users" element={isAdmin(user.role) ? <ArchivedUsers /> : <Navigate to="/" />} />
+                  <Route path="/audit-logs" element={isAdmin(user.role) ? <AuditLogs currentUser={user} /> : <Navigate to="/" />} />
+                  <Route path="*" element={<Navigate to="/" />} />
+                </Routes>
+              </Suspense>
             </ErrorBoundary>
           </div>
 
