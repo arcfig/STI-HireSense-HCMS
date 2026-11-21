@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { confirmAction, showAlert } from '../utils/swal';
 
 function ManageUsers({ currentUser }) {
   const [users, setUsers] = useState([]);
@@ -87,8 +88,15 @@ function ManageUsers({ currentUser }) {
     if (username === 'main.admin') {
       return setMessage({ text: 'Security override: Cannot archive the master admin.', type: 'danger' });
     }
-    
-    if (!window.confirm(`Are you sure you want to archive the account for ${username}?`)) return;
+
+    const confirmed = await confirmAction({
+      title: 'Archive User Account?',
+      text: `Are you sure you want to archive the account for @${username}? They will no longer be able to sign in until restored.`,
+      icon: 'warning',
+      confirmButtonText: 'Yes, Archive Account',
+      confirmButtonColor: '#d97706'
+    });
+    if (!confirmed) return;
 
     try {
       // --- UPDATED: PUT WITH TOKEN ---
@@ -106,6 +114,11 @@ function ManageUsers({ currentUser }) {
         // Remove the archived user from the active UI state immediately
         setUsers(users.filter(user => user._id !== userId));
         
+        await showAlert({
+          title: 'Account Archived',
+          text: `@${username} has been moved to Archived Accounts.`,
+          icon: 'success'
+        });
         setTimeout(() => setMessage({ text: '', type: '' }), 3000);
       } else {
         const data = await response.json();

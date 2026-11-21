@@ -1,6 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import Swal from 'sweetalert2';
+
+const INITIAL_FORM_STATE = (userRole) => ({
+  documentType: 'Certificate',
+  documentTitle: '',
+  firstName: '',
+  lastName: '',
+  department: 'Information Technology',
+  // Certificate specific
+  issuingInstitution: '',
+  dateReceived: '',
+  expirationDate: '',
+  // Evaluation specific
+  academicYear: '',
+  term: '',
+  evaluationRating: '',
+  // Contract specific
+  contractStart: '',
+  contractEnd: '',
+  // Letter of Intent specific
+  intent: 'Yes',
+  // Non-Renewal specific
+  offenseType: '',
+  // Identification specific
+  idType: '',
+  idNumber: '',
+  autoValidate: userRole === 'admin'
+});
 
 const UploadCredential = () => {
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // 1. Extract the token and role securely from session
   const savedUser = JSON.parse(sessionStorage.getItem('hireSenseUser') || '{}');
   const userRole = savedUser.role || 'faculty';
@@ -39,32 +80,7 @@ const UploadCredential = () => {
   const [dataPrivacyConsent, setDataPrivacyConsent] = useState(false);
 
   // Expanded State to hold all possible fields
-  const [formData, setFormData] = useState({
-    documentType: 'Certificate',
-    documentTitle: '',
-    firstName: '',
-    lastName: '',
-    department: 'Information Technology',
-    // Certificate specific
-    issuingInstitution: '',
-    dateReceived: '',
-    expirationDate: '',
-    // Evaluation specific
-    academicYear: '',
-    term: '',
-    evaluationRating: '',
-    // Contract specific
-    contractStart: '',
-    contractEnd: '',
-    // Letter of Intent specific
-    intent: 'Yes',
-    // Non-Renewal specific
-    offenseType: '',
-    // Identification specific
-    idType: '',
-    idNumber: '',
-    autoValidate: userRole === 'admin'
-  });
+  const [formData, setFormData] = useState(() => INITIAL_FORM_STATE(userRole));
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -137,20 +153,47 @@ const UploadCredential = () => {
     }
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const mainScroll = document.getElementById('main-scroll-container');
+    if (mainScroll) {
+      mainScroll.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const resetFullForm = () => {
+    setFormData((prev) => ({
+      ...INITIAL_FORM_STATE(userRole),
+      documentType: prev.documentType
+    }));
+    setSelectedFile(null);
+    setExtractedTags('');
+    setDataPrivacyConsent(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedFile) {
       setStatusMessage({ type: 'danger', text: 'A document file is required.' });
+      scrollToTop();
       return;
     }
 
     if (!token) {
       setStatusMessage({ type: 'danger', text: 'Authentication token missing. Please sign in again.' });
+      scrollToTop();
       return;
     }
 
+    const submittedTitle = formData.documentTitle || selectedFile.name || 'Credential';
+    const isAutoApproved = userRole === 'admin' && Boolean(formData.autoValidate);
+
     setIsSubmitting(true);
     setStatusMessage({ type: 'info', text: 'Uploading document and saving record...' });
+    const uploadToastId = toast.loading(`Uploading "${submittedTitle}"...`);
 
     const finalPayload = new FormData();
     Object.keys(formData).forEach(key => {
@@ -161,12 +204,12 @@ const UploadCredential = () => {
     finalPayload.append('uploaderRole', userRole);
     
     if (extractedTags) {
-        const tagsString = Array.isArray(extractedTags) ? extractedTags.join(', ') : extractedTags;
-        finalPayload.append('tags', tagsString);
+      const tagsString = Array.isArray(extractedTags) ? extractedTags.join(', ') : extractedTags;
+      finalPayload.append('tags', tagsString);
     }
 
     try {
-      // --- UPDATED: FETCH WITH TOKEN (No Content-Type for FormData) ---
+      // --- UPDATED: FETCH WITH TOKEN (Continues in background even if user navigates away) ---
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/add`, {
         method: 'POST',
         headers: {
@@ -177,18 +220,57 @@ const UploadCredential = () => {
       const data = await response.json();
 
       if (response.ok) {
+        toast.success(`"${submittedTitle}" uploaded successfully!`, { id: uploadToastId });
+
+        if (!isMountedRef.current) {
+          // User navigated to another page while upload ran in the background; toast notifies them
+          return;
+        }
+
+        // 1. Completely clear all text fields, reset file picker, and scroll back to top
+        resetFullForm();
         setStatusMessage({ type: 'success', text: 'Credential successfully saved to the database.' });
-        // Reset form
-        setFormData(prev => ({ ...prev, documentTitle: '', issuingInstitution: '', dateReceived: '', expirationDate: '', academicYear: '', term: '', contractStart: '', contractEnd: '', offenseType: '', idNumber: '' }));
-        setSelectedFile(null);
-        setDataPrivacyConsent(false);
+        scrollToTop();
+
+        // 2. Show theme-aware SweetAlert2 confirmation with choice to upload another or return home
+        const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+        const result = await Swal.fire({
+          icon: 'success',
+          title: 'Credential Submitted!',
+          text: isAutoApproved
+            ? `"${submittedTitle}" has been approved and published immediately.`
+            : `"${submittedTitle}" has been submitted and is now pending HR review.`,
+          showCancelButton: true,
+          confirmButtonText: 'Upload Another Document',
+          cancelButtonText: 'Return to Home Dashboard',
+          confirmButtonColor: '#08612f',
+          cancelButtonColor: '#64748b',
+          background: isDark ? '#1e1e1e' : '#ffffff',
+          color: isDark ? '#f8f9fa' : '#1e293b',
+          reverseButtons: true
+        });
+
+        if (result.dismiss === Swal.DismissReason.cancel) {
+          navigate('/');
+        }
       } else {
-        setStatusMessage({ type: 'danger', text: data.error || data.message || 'Error saving to database.' });
+        const errMsg = data.error || data.message || 'Error saving to database.';
+        toast.error(errMsg, { id: uploadToastId });
+        if (isMountedRef.current) {
+          setStatusMessage({ type: 'danger', text: errMsg });
+          scrollToTop();
+        }
       }
     } catch {
-      setStatusMessage({ type: 'danger', text: 'Network error during submission.' });
+      toast.error('Network error during submission.', { id: uploadToastId });
+      if (isMountedRef.current) {
+        setStatusMessage({ type: 'danger', text: 'Network error during submission.' });
+        scrollToTop();
+      }
     } finally {
-      setIsSubmitting(false);
+      if (isMountedRef.current) {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -239,7 +321,7 @@ const UploadCredential = () => {
               <div className="card-body py-3">
                 <h6 className="fw-bold mb-3">File Upload & AI Extraction</h6>
                 <div className="d-flex flex-column flex-sm-row gap-2 mb-2">
-                  <input type="file" className="form-control" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
+                  <input ref={fileInputRef} type="file" className="form-control" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" />
                   <button type="button" className="btn btn-primary text-nowrap flex-shrink-0" onClick={handleAutoFill} disabled={!selectedFile || isExtracting}>
                     {isExtracting ? 'Extracting...' : 'Auto-Fill Details'}
                   </button>

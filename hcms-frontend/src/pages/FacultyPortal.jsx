@@ -12,10 +12,20 @@ const FacultyPortal = ({ user }) => {
   const isHeadOrAdmin = ['admin', 'academic_head', 'program_head'].includes(role);
 
   const [metrics, setMetrics] = useState({
-    admin: { totalFaculty: 0, pendingApprovals: 0, departmentCounts: {} },
-    faculty: { docCount: 0, skillCount: 0, rating: 'N/A' }
+    admin: {
+      totalFaculty: 0,
+      pendingApprovals: 0,
+      departmentCounts: {},
+      expiringCount: 0,
+      expiredCount: 0,
+      aiVerifiedCount: 0,
+      aiFlaggedCount: 0
+    },
+    faculty: { docCount: 0, skillCount: 0, rating: 'N/A', pendingCount: 0, rejectedCount: 0, expiringCount: 0 }
   });
   const [pendingDocs, setPendingDocs] = useState([]);
+  const [expiringDocs, setExpiringDocs] = useState([]);
+  const [mySubmissions, setMySubmissions] = useState([]);
   const [adminSparkline, setAdminSparkline] = useState([]);
   const [facultySparkline, setFacultySparkline] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
@@ -65,7 +75,9 @@ const FacultyPortal = ({ user }) => {
         
         if (approvedRes.ok) {
           const approvedData = await approvedRes.json();
-          
+          const nowMs = Date.now();
+          const sixtyDaysMs = 60 * 24 * 60 * 60 * 1000;
+
           if (isHeadOrAdmin) {
             // Populate Recent Activity Timeline for Admins (all users)
             const recent = [...approvedData].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 4);
@@ -76,6 +88,32 @@ const FacultyPortal = ({ user }) => {
             const pendingData = pendingRes.ok ? await pendingRes.json() : [];
             setPendingDocs(pendingData);
             setAdminSparkline(generateSparklineData(pendingData));
+
+            // Compute Expiring / Expired Approved Credentials Watchlist
+            let expiredCount = 0;
+            let expiringSoonCount = 0;
+            const watchlist = [];
+
+            approvedData.forEach((doc) => {
+              if (!doc.expirationDate) return;
+              const expTime = new Date(doc.expirationDate).getTime();
+              if (Number.isNaN(expTime)) return;
+              const diff = expTime - nowMs;
+              if (diff < 0) {
+                expiredCount += 1;
+                watchlist.push({ ...doc, expiryState: 'expired', expTime });
+              } else if (diff <= sixtyDaysMs) {
+                expiringSoonCount += 1;
+                watchlist.push({ ...doc, expiryState: 'expiring', expTime });
+              }
+            });
+
+            watchlist.sort((a, b) => a.expTime - b.expTime);
+            setExpiringDocs(watchlist.slice(0, 4));
+
+            // Count AI Verified vs Flagged certificates in the pending queue
+            const aiVerifiedCount = pendingData.filter((d) => d.verificationStatus === 'verified').length;
+            const aiFlaggedCount = pendingData.filter((d) => d.verificationStatus === 'flagged').length;
 
             // Execute Department Aggregation Map
             const facultyMap = new Map();
@@ -99,20 +137,46 @@ const FacultyPortal = ({ user }) => {
               admin: {
                 totalFaculty: facultyMap.size,
                 pendingApprovals: pendingData.length || 0,
-                departmentCounts: deptCounts
+                departmentCounts: deptCounts,
+                expiringCount: expiringSoonCount,
+                expiredCount,
+                aiVerifiedCount,
+                aiFlaggedCount
               }
             }));
           } else {
-            // Calculate Faculty Micro-Metrics using only the approved data
+            // Calculate Faculty Micro-Metrics + Fetch All Own Submissions (Pending, Approved, Rejected)
             const targetIdentity = name.toLowerCase().replace(/\s+/g, '');
             const myDocs = approvedData.filter(doc => {
               const docName = `${doc.firstName} ${doc.lastName}`.toLowerCase().replace(/\s+/g, '');
               return docName === targetIdentity;
             });
-            setFacultySparkline(generateSparklineData(myDocs));
+
+            let allMyDocs = myDocs;
+            try {
+              const mySubRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/faculty/my-submissions`, { headers });
+              if (mySubRes.ok) {
+                const subData = await mySubRes.json();
+                if (Array.isArray(subData)) {
+                  allMyDocs = subData;
+                }
+              }
+            } catch {
+              // Fallback to approved docs if endpoint isn't reachable
+            }
+
+            setMySubmissions(allMyDocs);
+            setFacultySparkline(generateSparklineData(allMyDocs));
 
             const mySkills = new Set(myDocs.flatMap(doc => doc.tags || [])).size;
-            
+            const pendingCount = allMyDocs.filter((d) => d.status === 'pending').length;
+            const rejectedCount = allMyDocs.filter((d) => d.status === 'rejected').length;
+            const expiringCount = myDocs.filter((d) => {
+              if (!d.expirationDate) return false;
+              const expTime = new Date(d.expirationDate).getTime();
+              return !Number.isNaN(expTime) && expTime - nowMs <= sixtyDaysMs;
+            }).length;
+
             const evals = myDocs.filter(d => d.documentType === 'Faculty Evaluation' && d.evaluationRating);
             let avgRating = 'N/A';
             if (evals.length > 0) {
@@ -125,11 +189,14 @@ const FacultyPortal = ({ user }) => {
               faculty: {
                 docCount: myDocs.length,
                 skillCount: mySkills,
-                rating: avgRating
+                rating: avgRating,
+                pendingCount,
+                rejectedCount,
+                expiringCount
               }
             }));
 
-            // Populate Recent Activity Timeline for Faculty (only their own docs)
+            // Populate Recent Activity Timeline for Faculty (only their own approved docs)
             const recent = [...myDocs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 4);
             setRecentActivity(recent);
           }
@@ -186,50 +253,200 @@ const FacultyPortal = ({ user }) => {
         <div className="row g-4 mb-5">
           {/* Column A: Operational Focus (Left Pane) */}
           <div className="col-lg-8">
-            <h5 className="text-secondary fw-bold mb-3">Quick Actions</h5>
-            <div className="row g-3 mb-4">
-              <div className="col-sm-6">
-                {isHeadOrAdmin ? (
-                  <div className="card h-100 hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
-                    <div className="card-body p-3 d-flex align-items-center">
-                      <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
-                        <i className="bi bi-people-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
-                      </div>
-                      <div>
-                        <h6 className="fw-bold mb-1">Faculty Directory</h6>
-                        <Link to="/directory" className="btn btn-neutral-outline btn-sm fw-bold px-3 mt-1">Open Directory</Link>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="card h-100 hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
-                    <div className="card-body p-3 d-flex align-items-center">
-                      <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
-                        <i className="bi bi-person-badge-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
-                      </div>
-                      <div>
-                        <h6 className="fw-bold mb-1">My Portfolio</h6>
-                        <Link to="/portfolio" className="btn btn-neutral-outline btn-sm fw-bold px-3 mt-1">View Portfolio</Link>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+            {isHeadOrAdmin ? (
+              <>
+                <h5 className="text-secondary fw-bold mb-3">Compliance &amp; Verification Insights</h5>
+                <div className="row g-3 mb-4">
+                  {/* Card 1: Credential Expiration Watchlist */}
+                  <div className="col-sm-6">
+                    <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                      <div className="card-body p-3 d-flex flex-column justify-content-between">
+                        <div className="d-flex align-items-start justify-content-between gap-2 mb-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <div
+                              className="p-2 d-flex align-items-center justify-content-center flex-shrink-0"
+                              style={{
+                                backgroundColor: (metrics.admin.expiredCount + metrics.admin.expiringCount) > 0
+                                  ? 'rgba(220, 53, 69, 0.1)'
+                                  : 'rgba(8, 97, 47, 0.1)',
+                                borderRadius: '8px',
+                                width: '40px',
+                                height: '40px'
+                              }}
+                            >
+                              <i
+                                className={`bi ${(metrics.admin.expiredCount + metrics.admin.expiringCount) > 0 ? 'bi-clock-history text-danger' : 'bi-shield-fill-check'} fs-5`}
+                                style={{ color: (metrics.admin.expiredCount + metrics.admin.expiringCount) === 0 ? 'var(--brand-primary-bg)' : undefined }}
+                              ></i>
+                            </div>
+                            <div>
+                              <h6 className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>Expiration Watchlist</h6>
+                              <small className="text-muted">60-day renewal radar</small>
+                            </div>
+                          </div>
+                          <span className={`badge ${(metrics.admin.expiredCount + metrics.admin.expiringCount) > 0 ? 'bg-danger' : 'bg-success'}`}>
+                            {metrics.admin.expiredCount + metrics.admin.expiringCount} Alert{(metrics.admin.expiredCount + metrics.admin.expiringCount) === 1 ? '' : 's'}
+                          </span>
+                        </div>
 
-              <div className="col-sm-6">
-                <div className="card h-100 hover-lift transition-all" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
-                  <div className="card-body p-3 d-flex align-items-center">
-                    <div className="p-3 me-3" style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px' }}>
-                      <i className="bi bi-cloud-arrow-up-fill fs-4" style={{ color: 'var(--brand-primary-bg)' }}></i>
+                        {expiringDocs.length > 0 ? (
+                          <div className="small mt-1 mb-2">
+                            {expiringDocs.slice(0, 2).map((doc) => (
+                              <div key={doc._id} className="d-flex justify-content-between align-items-center py-1 border-bottom" style={{ borderColor: 'var(--border-subtle)' }}>
+                                <span className="text-truncate me-2" style={{ color: 'var(--text-main)' }}>
+                                  <strong>{doc.firstName} {doc.lastName}:</strong> {doc.documentTitle}
+                                </span>
+                                <span className={`badge ${doc.expiryState === 'expired' ? 'bg-danger-subtle text-danger' : 'bg-warning-subtle text-warning-emphasis'} flex-shrink-0`}>
+                                  {doc.expiryState === 'expired' ? 'Expired' : doc.expirationDate?.split('T')[0]}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-muted small mb-2 mt-1">
+                            All approved faculty certifications and contracts are currently within valid dates.
+                          </p>
+                        )}
+
+                        <div className="d-flex gap-2 mt-auto pt-1">
+                          <Link to="/directory" className="btn btn-neutral-outline btn-sm fw-bold px-3">
+                            <i className="bi bi-eye me-1"></i>Inspect Portfolios
+                          </Link>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h6 className="fw-bold mb-1">Submit Credentials</h6>
-                      <Link to="/upload" className="btn btn-neutral-outline btn-sm fw-bold px-3 mt-1">Upload Now</Link>
+                  </div>
+
+                  {/* Card 2: AI Verification Queue Status */}
+                  <div className="col-sm-6">
+                    <div className="card h-100" style={{ borderRadius: '12px', border: '1px solid var(--border-neutral)', boxShadow: 'none' }}>
+                      <div className="card-body p-3 d-flex flex-column justify-content-between">
+                        <div className="d-flex align-items-start justify-content-between gap-2 mb-2">
+                          <div className="d-flex align-items-center gap-2">
+                            <div
+                              className="p-2 d-flex align-items-center justify-content-center flex-shrink-0"
+                              style={{ backgroundColor: 'rgba(8, 97, 47, 0.1)', borderRadius: '8px', width: '40px', height: '40px' }}
+                            >
+                              <i className="bi bi-cpu-fill fs-5" style={{ color: 'var(--brand-primary-bg)' }}></i>
+                            </div>
+                            <div>
+                              <h6 className="fw-bold mb-0" style={{ color: 'var(--text-main)' }}>AI Verification Queue</h6>
+                              <small className="text-muted">Queue forensic status</small>
+                            </div>
+                          </div>
+                          {metrics.admin.aiFlaggedCount > 0 ? (
+                            <span className="badge bg-warning text-dark">{metrics.admin.aiFlaggedCount} Flagged</span>
+                          ) : (
+                            <span className="badge bg-success-subtle text-success border border-success-subtle">
+                              {metrics.admin.aiVerifiedCount} AI Verified
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-muted small mb-2 mt-1">
+                          {pendingDocs.length > 0
+                            ? `${metrics.admin.aiVerifiedCount} of ${pendingDocs.length} pending item(s) verified by AI${metrics.admin.aiFlaggedCount > 0 ? ` (${metrics.admin.aiFlaggedCount} flagged for manual review)` : ''}.`
+                            : 'Pending review queue is clear. All submitted certificates have been processed.'}
+                        </p>
+
+                        <div className="d-flex flex-wrap gap-2 mt-auto pt-1">
+                          <Link to="/hr-dashboard" className="btn btn-neutral-outline btn-sm fw-bold px-3">
+                            <i className="bi bi-shield-lock me-1"></i>Review in HR Dashboard
+                          </Link>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </>
+            ) : (
+              /* FACULTY VIEW: My Submissions & HR Feedback Status Tracker */
+              <>
+                <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                  <h5 className="text-secondary fw-bold mb-0">My Submission Status &amp; HR Feedback</h5>
+                  <div className="d-flex flex-wrap gap-2">
+                    <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                      <i className="bi bi-hourglass-split me-1"></i>{metrics.faculty.pendingCount} Pending
+                    </span>
+                    <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                      <i className="bi bi-check-circle-fill me-1"></i>{metrics.faculty.docCount} Approved
+                    </span>
+                    {metrics.faculty.rejectedCount > 0 && (
+                      <span className="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                        <i className="bi bi-exclamation-circle-fill me-1"></i>{metrics.faculty.rejectedCount} Needs Revision
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {mySubmissions.length > 0 ? (
+                  <div className="card border-0 shadow-sm rounded-3 overflow-hidden mb-4">
+                    <ul className="list-group list-group-flush">
+                      {mySubmissions.slice(0, 6).map((doc) => {
+                        const statusBadge =
+                          doc.status === 'approved'
+                            ? { cls: 'bg-success', label: 'APPROVED', icon: 'bi-check-circle-fill' }
+                            : doc.status === 'rejected'
+                              ? { cls: 'bg-danger', label: 'REJECTED', icon: 'bi-x-circle-fill' }
+                              : { cls: 'bg-warning text-dark', label: 'PENDING REVIEW', icon: 'bi-hourglass-split' };
+
+                        return (
+                          <li
+                            key={doc._id}
+                            className="list-group-item p-3"
+                            style={{ backgroundColor: 'var(--surface-neutral)', borderColor: 'var(--border-neutral)' }}
+                          >
+                            <div className="d-flex justify-content-between align-items-start gap-2">
+                              <div className="min-w-0">
+                                <p className="fw-bold mb-1 text-break" style={{ color: 'var(--text-main)' }}>
+                                  {doc.documentTitle || 'Untitled Credential'}
+                                </p>
+                                <div className="d-flex flex-wrap align-items-center gap-2 small text-muted">
+                                  <span className="badge border" style={{ backgroundColor: 'var(--bg-neutral-light)', color: 'var(--text-main)', fontSize: '0.7rem' }}>
+                                    {doc.documentType}
+                                  </span>
+                                  <span>Submitted {doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recently'}</span>
+                                  {doc.expirationDate && (
+                                    <span className="text-danger fw-semibold">
+                                      • Expires {doc.expirationDate.split('T')[0]}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className={`badge ${statusBadge.cls} px-2 py-1 flex-shrink-0`}>
+                                <i className={`bi ${statusBadge.icon} me-1`}></i>
+                                {statusBadge.label}
+                              </span>
+                            </div>
+
+                            {doc.remarks && (
+                              <div
+                                className="mt-2 p-2 rounded small"
+                                style={{
+                                  backgroundColor: doc.status === 'rejected' ? 'rgba(220, 53, 69, 0.08)' : 'var(--bg-neutral-light)',
+                                  borderLeft: `3px solid ${doc.status === 'rejected' ? 'var(--bs-danger)' : 'var(--brand-primary-bg)'}`,
+                                  color: 'var(--text-main)'
+                                }}
+                              >
+                                <strong>HR Remarks:</strong> {doc.remarks}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="card border-0 shadow-sm rounded-3 p-4 text-center mb-4" style={{ backgroundColor: 'var(--surface-neutral)' }}>
+                    <i className="bi bi-folder2-open text-muted opacity-50 fs-1 mb-2"></i>
+                    <h6 className="fw-bold mb-1" style={{ color: 'var(--text-main)' }}>No Credentials Submitted Yet</h6>
+                    <p className="text-muted small mb-0">
+                      Use the <strong>Upload Credentials</strong> tab in the sidebar to submit your certificates, 201 files, or evaluations.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
 
             {isHeadOrAdmin && (
               <>

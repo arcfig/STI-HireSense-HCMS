@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { confirmAction, showAlert } from '../utils/swal';
 
 const ArchivedUsers = () => {
   const [archivedUsers, setArchivedUsers] = useState([]);
@@ -38,6 +39,18 @@ const ArchivedUsers = () => {
   };
 
   const handleRestore = async (userId) => {
+    const targetUser = archivedUsers.find((u) => u._id === userId);
+    const displayName = targetUser ? `${targetUser.name} (@${targetUser.username})` : 'this account';
+
+    const confirmed = await confirmAction({
+      title: 'Restore User Account?',
+      text: `Restore system access for ${displayName}?`,
+      icon: 'question',
+      confirmButtonText: 'Yes, Restore Account',
+      confirmButtonColor: '#08612f'
+    });
+    if (!confirmed) return;
+
     try {
       // --- UPDATED: PUT WITH TOKEN ---
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/users/${userId}/restore`, {
@@ -50,6 +63,11 @@ const ArchivedUsers = () => {
       
       if (response.ok) {
         setArchivedUsers(archivedUsers.filter(user => user._id !== userId));
+        await showAlert({
+          title: 'Account Restored!',
+          text: `${displayName} has been restored to active system users.`,
+          icon: 'success'
+        });
       } else {
         console.error("Failed to restore account. Backend refused the request.");
       }

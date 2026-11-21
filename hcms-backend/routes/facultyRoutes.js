@@ -10,6 +10,7 @@ const Department = require('../models/Department');
 const Program = require('../models/Program');
 const Subject = require('../models/Subject');
 const validator = require('ph-id-validator');
+const ExcelJS = require('exceljs');
 
 // 1. Import the new jose JWT middleware
 const { verifyToken, requireRole } = require('../middleware/authMiddleware');
@@ -122,6 +123,39 @@ router.get('/approved', verifyToken, auditLogger(), async (req, res) => {
   } catch (error) {
     console.error("Error fetching approved profiles:", error);
     res.status(500).json({ error: "Failed to fetch portfolio data." });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Fetch Logged-In Faculty's Own Submissions (Pending, Approved, Rejected)
+// --------------------------------------------------------
+router.get('/my-submissions', verifyToken, auditLogger(), async (req, res) => {
+  try {
+    const username = req.user?.username;
+    const rawId = req.user?.id || req.user?._id;
+    let currentUser = null;
+
+    if (typeof rawId === 'string' && /^[a-f\d]{24}$/i.test(rawId)) {
+      currentUser = await User.findById(rawId);
+    }
+    if (!currentUser && username) {
+      currentUser = await User.findOne({ username });
+    }
+    if (!currentUser) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const normalizedTarget = String(currentUser.name || '').toLowerCase().replace(/\s+/g, '');
+    const allDocs = await Faculty.find().sort({ createdAt: -1 });
+    const mySubmissions = allDocs.filter((doc) => {
+      const fullName = `${doc.firstName || ''} ${doc.lastName || ''}`.toLowerCase().replace(/\s+/g, '');
+      return fullName === normalizedTarget;
+    });
+
+    res.status(200).json(mySubmissions);
+  } catch (error) {
+    console.error("Error fetching user submissions:", error);
+    res.status(500).json({ error: "Failed to fetch your credential submissions." });
   }
 });
 
@@ -495,6 +529,347 @@ router.get('/subjects/hierarchy', verifyToken, auditLogger(), requireRole(['admi
   } catch (error) {
     console.error("Hierarchy Error:", error);
     res.status(500).json({ error: "Failed to retrieve subject hierarchy." });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Export Curriculum Subjects (.xlsx or .csv) (Secured: Admins and Heads)
+// --------------------------------------------------------
+router.get('/subjects/export', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+  try {
+    const format = (req.query.format || 'xlsx').toLowerCase();
+    const isTemplate = req.query.template === 'true';
+
+    const subjects = isTemplate
+      ? []
+      : await Subject.find()
+          .populate('programId', 'name')
+          .populate('departmentId', 'name');
+
+    let rows = subjects
+      .filter(s => s.departmentId && s.programId)
+      .map(s => ({
+        department: s.departmentId.name,
+        program: s.programId.name,
+        courseCode: s.courseCode,
+        subjectName: s.subjectName
+      }))
+      .sort((a, b) =>
+        a.department.localeCompare(b.department) ||
+        a.program.localeCompare(b.program) ||
+        a.courseCode.localeCompare(b.courseCode)
+      );
+
+    if (rows.length === 0) {
+      rows = [
+        {
+          department: 'Information Technology',
+          program: 'BSIT',
+          courseCode: 'IT1808',
+          subjectName: 'Integrative Programming'
+        },
+        {
+          department: 'Information Technology',
+          program: 'BSCS',
+          courseCode: 'CS1201',
+          subjectName: 'Data Structures and Algorithms'
+        }
+      ];
+    }
+
+    if (format === 'csv') {
+      const escapeCsv = (val) => {
+        const str = String(val ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+
+      const csvLines = [
+        'Department,Program,Course Code,Subject Name',
+        ...rows.map(r => [r.department, r.program, r.courseCode, r.subjectName].map(escapeCsv).join(','))
+      ];
+      const csvBuffer = Buffer.from('\uFEFF' + csvLines.join('\r\n'), 'utf8');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${isTemplate ? 'HireSense_Curriculum_Template.csv' : 'HireSense_Curriculum_Subjects.csv'}"`
+      );
+      return res.status(200).send(csvBuffer);
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Curriculum Subjects');
+
+    worksheet.columns = [
+      { header: 'Department', key: 'department', width: 28 },
+      { header: 'Program', key: 'program', width: 18 },
+      { header: 'Course Code', key: 'courseCode', width: 18 },
+      { header: 'Subject Name', key: 'subjectName', width: 42 }
+    ];
+
+    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF08612F' }
+    };
+
+    rows.forEach(r => worksheet.addRow(r));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${isTemplate ? 'HireSense_Curriculum_Template.xlsx' : 'HireSense_Curriculum_Subjects.xlsx'}"`
+    );
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error("Curriculum Export Error:", error);
+    res.status(500).json({ error: "Failed to export curriculum subjects." });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Add or Update Single Subject (Secured: Admins and Heads)
+// --------------------------------------------------------
+router.post('/subjects/add', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+  try {
+    const { department, program, courseCode, subjectName } = req.body;
+    if (!department?.trim() || !program?.trim() || !courseCode?.trim() || !subjectName?.trim()) {
+      return res.status(400).json({ error: "Department, Program, Course Code, and Subject Name are all required." });
+    }
+
+    const cleanDept = department.trim();
+    const cleanProg = program.trim().toUpperCase();
+    const cleanCode = courseCode.trim().toUpperCase();
+    const cleanName = subjectName.trim();
+
+    const deptDoc = await Department.findOneAndUpdate(
+      { name: cleanDept },
+      { name: cleanDept },
+      { upsert: true, new: true }
+    );
+
+    const progDoc = await Program.findOneAndUpdate(
+      { name: cleanProg },
+      { name: cleanProg, departmentId: deptDoc._id },
+      { upsert: true, new: true }
+    );
+
+    const subjectDoc = await Subject.findOneAndUpdate(
+      { courseCode: cleanCode },
+      {
+        courseCode: cleanCode,
+        subjectName: cleanName,
+        programId: progDoc._id,
+        departmentId: deptDoc._id
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({
+      message: `Subject ${cleanCode} (${cleanName}) saved to ${cleanProg}!`,
+      subject: subjectDoc
+    });
+  } catch (error) {
+    console.error("Add Subject Error:", error);
+    res.status(500).json({ error: "Failed to save subject." });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Bulk Import Curriculum Subjects (.xlsx or .csv) (Secured: Admins and Heads)
+// --------------------------------------------------------
+router.post('/subjects/import', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Please attach an .xlsx or .csv curriculum file." });
+    }
+
+    const defaultDepartment = (req.body.defaultDepartment || 'Information Technology').trim();
+    const defaultProgram = (req.body.defaultProgram || 'BSIT').trim().toUpperCase();
+    const fileName = (req.file.originalname || '').toLowerCase();
+
+    let rawRows = [];
+
+    if (fileName.endsWith('.csv') || req.file.mimetype === 'text/csv') {
+      const parseCsvLine = (line) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (ch === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += ch;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+
+      const text = req.file.buffer.toString('utf8').replace(/^\uFEFF/, '');
+      const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+      rawRows = lines.map(parseCsvLine);
+    } else if (fileName.endsWith('.xlsx')) {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer);
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        return res.status(400).json({ error: "The uploaded Excel workbook contains no worksheets." });
+      }
+
+      const extractCellText = (cellVal) => {
+        if (cellVal === null || cellVal === undefined) return '';
+        if (typeof cellVal === 'object') {
+          if (Array.isArray(cellVal.richText)) {
+            return cellVal.richText.map(rt => rt.text).join('').trim();
+          }
+          if (cellVal.result !== undefined) return String(cellVal.result).trim();
+          if (cellVal.text !== undefined) return String(cellVal.text).trim();
+        }
+        return String(cellVal).trim();
+      };
+
+      worksheet.eachRow({ includeEmpty: false }, (row) => {
+        const rowValues = [];
+        for (let c = 1; c <= Math.max(row.cellCount, 4); c++) {
+          rowValues.push(extractCellText(row.getCell(c).value));
+        }
+        if (rowValues.some(v => v.length > 0)) {
+          rawRows.push(rowValues);
+        }
+      });
+    } else {
+      return res.status(400).json({ error: "Unsupported file format. Please upload an .xlsx or .csv file." });
+    }
+
+    if (rawRows.length < 2) {
+      return res.status(400).json({ error: "The uploaded file must include a header row and at least one subject row." });
+    }
+
+    // Flexible header detection
+    const headerRow = rawRows[0].map(h => String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+    let deptIdx = headerRow.findIndex(h => ['department', 'dept', 'departmentname', 'college', 'school'].includes(h));
+    let progIdx = headerRow.findIndex(h => ['program', 'prog', 'programcode', 'programname', 'degree', 'course', 'curriculum', 'strand'].includes(h));
+    let codeIdx = headerRow.findIndex(h => ['coursecode', 'subjectcode', 'code', 'subcode', 'courseid', 'courseno', 'subjectno'].includes(h));
+    let nameIdx = headerRow.findIndex(h => ['subjectname', 'coursetitle', 'subjecttitle', 'descriptivetitle', 'title', 'description', 'subject', 'coursename', 'name'].includes(h));
+
+    // Positional fallback if non-standard headers were used
+    if (codeIdx === -1 && nameIdx === -1) {
+      const colCount = rawRows[0].filter(Boolean).length;
+      if (colCount >= 4) {
+        deptIdx = 0; progIdx = 1; codeIdx = 2; nameIdx = 3;
+      } else if (colCount === 3) {
+        progIdx = 0; codeIdx = 1; nameIdx = 2;
+      } else if (colCount === 2) {
+        codeIdx = 0; nameIdx = 1;
+      }
+    }
+
+    if (codeIdx === -1 || nameIdx === -1) {
+      return res.status(400).json({
+        error: "Could not locate 'Course Code' and 'Subject Name' columns. Please include headers such as Department, Program, Course Code, and Subject Name."
+      });
+    }
+
+    const deptCache = new Map();
+    const progCache = new Map();
+    let createdCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+
+    for (let i = 1; i < rawRows.length; i++) {
+      const row = rawRows[i];
+      const rawCode = (row[codeIdx] || '').trim().toUpperCase();
+      const rawName = (row[nameIdx] || '').trim();
+
+      if (!rawCode || !rawName) {
+        skippedCount++;
+        continue;
+      }
+
+      const rawDept = (deptIdx !== -1 && row[deptIdx] ? row[deptIdx].trim() : '') || defaultDepartment;
+      const rawProg = ((progIdx !== -1 && row[progIdx] ? row[progIdx].trim() : '') || defaultProgram).toUpperCase();
+
+      let deptDoc = deptCache.get(rawDept.toLowerCase());
+      if (!deptDoc) {
+        deptDoc = await Department.findOneAndUpdate(
+          { name: rawDept },
+          { name: rawDept },
+          { upsert: true, new: true }
+        );
+        deptCache.set(rawDept.toLowerCase(), deptDoc);
+      }
+
+      const progKey = `${rawDept.toLowerCase()}::${rawProg.toLowerCase()}`;
+      let progDoc = progCache.get(progKey);
+      if (!progDoc) {
+        progDoc = await Program.findOneAndUpdate(
+          { name: rawProg },
+          { name: rawProg, departmentId: deptDoc._id },
+          { upsert: true, new: true }
+        );
+        progCache.set(progKey, progDoc);
+      }
+
+      const existingSub = await Subject.findOne({ courseCode: rawCode });
+      if (existingSub) {
+        existingSub.subjectName = rawName;
+        existingSub.programId = progDoc._id;
+        existingSub.departmentId = deptDoc._id;
+        await existingSub.save();
+        updatedCount++;
+      } else {
+        await Subject.create({
+          courseCode: rawCode,
+          subjectName: rawName,
+          programId: progDoc._id,
+          departmentId: deptDoc._id
+        });
+        createdCount++;
+      }
+    }
+
+    res.status(200).json({
+      message: `Curriculum import complete: ${createdCount} added, ${updatedCount} updated${skippedCount > 0 ? `, ${skippedCount} empty row(s) skipped` : ''}.`,
+      totalProcessed: createdCount + updatedCount,
+      createdCount,
+      updatedCount,
+      skippedCount
+    });
+  } catch (error) {
+    console.error("Curriculum Import Error:", error);
+    res.status(500).json({ error: "Failed to import curriculum file.", details: error.message });
+  }
+});
+
+// --------------------------------------------------------
+// ROUTE: Delete Subject by Course Code (Secured: Admins and Heads)
+// --------------------------------------------------------
+router.delete('/subjects/:courseCode', verifyToken, auditLogger(), requireRole(['admin', 'academic_head', 'program_head']), async (req, res) => {
+  try {
+    const courseCode = decodeURIComponent(req.params.courseCode).trim();
+    const deleted = await Subject.findOneAndDelete({ courseCode });
+    if (!deleted) {
+      return res.status(404).json({ error: "Subject not found." });
+    }
+    res.status(200).json({ message: `Subject ${courseCode} removed from curriculum.` });
+  } catch (error) {
+    console.error("Delete Subject Error:", error);
+    res.status(500).json({ error: "Failed to delete subject." });
   }
 });
 

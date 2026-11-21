@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { startRegistration } from '@simplewebauthn/browser';
+import { confirmAction } from '../utils/swal';
 
 function MyProfile({ user, onUpdateUser }) {
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -146,7 +147,15 @@ function MyProfile({ user, onUpdateUser }) {
   };
 
   const handleRemovePasskey = async (credentialId, deviceName) => {
-    if (!window.confirm(`Remove "${deviceName}" from your registered Passkeys?`)) return;
+    const confirmed = await confirmAction({
+      title: 'Remove Passkey?',
+      text: `Remove "${deviceName}" from your registered Passkeys? You will no longer be able to sign in using this device's passkey.`,
+      icon: 'warning',
+      confirmButtonText: 'Yes, Remove Passkey',
+      confirmButtonColor: '#dc3545'
+    });
+    if (!confirmed) return;
+
     setWebauthnMessage({ text: '', type: '' });
     setRemovingPasskeyId(credentialId);
 
@@ -253,7 +262,15 @@ function MyProfile({ user, onUpdateUser }) {
   };
 
   const handleDisable2FA = async () => {
-    if (!window.confirm('Disable Email Two-Factor Authentication on your account?')) return;
+    const confirmed = await confirmAction({
+      title: 'Disable Email 2FA?',
+      text: 'Signing in with a password will no longer require a 6-digit email verification code.',
+      icon: 'warning',
+      confirmButtonText: 'Yes, Disable 2FA',
+      confirmButtonColor: '#dc3545'
+    });
+    if (!confirmed) return;
+
     setTwoFactorMessage({ text: '', type: '' });
     setTwoFactorLoading(true);
 
@@ -284,7 +301,16 @@ function MyProfile({ user, onUpdateUser }) {
   };
 
   // --- PASSWORD & PROFILE FUNCTIONS ---
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const confirmed = await confirmAction({
+      title: 'Sign Out?',
+      text: 'Are you sure you want to log out of your HireSense session?',
+      icon: 'question',
+      confirmButtonText: 'Yes, Logout',
+      confirmButtonColor: '#dc3545'
+    });
+    if (!confirmed) return;
+
     sessionStorage.removeItem('hireSenseUser');
     window.location.href = '/';
   };

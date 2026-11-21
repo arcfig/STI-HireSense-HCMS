@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { showAlert } from '../utils/swal';
 
 const MyPortfolio = ({ user }) => {
   // 1. State Management
@@ -92,7 +93,7 @@ const MyPortfolio = ({ user }) => {
     if (url) {
       setPreviewDoc({ isOpen: true, url, title });
     } else {
-      alert("No file attached to this credential.");
+      showAlert({ title: 'No File Attached', text: 'No document file is attached to this credential.', icon: 'warning' });
     }
   };
 

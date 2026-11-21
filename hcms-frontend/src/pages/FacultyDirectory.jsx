@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { showAlert } from '../utils/swal';
 
 const FacultyDirectory = () => {
   const [directoryData, setDirectoryData] = useState([]);
@@ -140,7 +141,10 @@ const FacultyDirectory = () => {
     fetchDirectory();
   }, [token]); // Added token as a dependency
 
-  const openViewer = (url, title) => url ? setPreviewDoc({ isOpen: true, url, title }) : alert("No file attached.");
+  const openViewer = (url, title) =>
+    url
+      ? setPreviewDoc({ isOpen: true, url, title })
+      : showAlert({ title: 'No File Attached', text: 'There is no document file attached to this record.', icon: 'warning' });
   const closeViewer = () => setPreviewDoc({ isOpen: false, url: '', title: '' });
   const closeProfile = () => setSelectedFaculty(null);
 
