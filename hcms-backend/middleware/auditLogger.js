@@ -199,7 +199,13 @@ const auditLogger = (options = {}) => {
       setImmediate(async () => {
         try {
           const userPayload = (req.user && req.user.id) ? req.user : await resolveJwtUser(req, rawToken);
-          const rawUserId = userPayload?.id;
+          let rawUserId = userPayload?.id;
+
+          if ((!rawUserId || typeof rawUserId !== 'string' || !mongoose.Types.ObjectId.isValid(rawUserId)) && userPayload?.username) {
+            const User = mongoose.models.User || require('../models/User');
+            const foundUser = await User.findOne({ username: userPayload.username }).select('_id').lean();
+            rawUserId = foundUser?._id ? String(foundUser._id) : null;
+          }
 
           // Only log authenticated principals with a valid MongoDB ObjectId
           if (!rawUserId || !mongoose.Types.ObjectId.isValid(String(rawUserId))) {

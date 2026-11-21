@@ -26,6 +26,74 @@ function Login({ onLogin }) {
 
   const [isBiometricLogin, setIsBiometricLogin] = useState(false);
 
+  // 3. State for Email 6-Digit OTP Two-Factor Authentication (2FA)
+  const [twoFactorData, setTwoFactorData] = useState({
+    username: '',
+    maskedEmail: '',
+    code: '',
+    deliveryMode: 'smtp'
+  });
+  const [isVerifying2FA, setIsVerifying2FA] = useState(false);
+  const [isResending2FA, setIsResending2FA] = useState(false);
+
+  const handleVerify2FA = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+    setIsVerifying2FA(true);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/login/verify-2fa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: twoFactorData.username,
+          code: twoFactorData.code.trim()
+        })
+      });
+      const data = await response.json();
+
+      if (response.ok && data.user && data.token) {
+        onLogin({
+          ...data.user,
+          token: data.token
+        });
+        navigate('/');
+      } else {
+        setError(data.error || 'Failed to verify 6-digit code.');
+      }
+    } catch {
+      setError('Server error during 2FA verification.');
+    } finally {
+      setIsVerifying2FA(false);
+    }
+  };
+
+  const handleResend2FA = async () => {
+    setError('');
+    setSuccessMsg('');
+    setIsResending2FA(true);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/login/resend-2fa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: twoFactorData.username })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setSuccessMsg(data.message || 'A new 6-digit verification code has been sent.');
+      } else {
+        setError(data.error || 'Could not resend verification code.');
+      }
+    } catch {
+      setError('Server error while resending code.');
+    } finally {
+      setIsResending2FA(false);
+    }
+  };
+
   const handleBiometricLogin = async () => {
     if (!credentials.username) {
       setError("Please enter your System Username first.");
@@ -180,6 +248,15 @@ function Login({ onLogin }) {
           switchView('login');
         } else if (view === 'forgot') {
           setSuccessMsg(data.message);
+        } else if (data.requiresTwoFactor) {
+          setTwoFactorData({
+            username: data.username || credentials.username,
+            maskedEmail: data.maskedEmail || 'your email',
+            code: '',
+            deliveryMode: data.deliveryMode || 'smtp'
+          });
+          setView('2fa');
+          setSuccessMsg(data.message || 'Verification code sent to your email.');
         } else {
           // --- NEW: JWT SECURITY DATA HANDLING ---
           // Ensure both the user object and the security token exist in the response
@@ -232,7 +309,13 @@ function Login({ onLogin }) {
             <i className="bi bi-buildings-fill me-2"></i>{APP_NAME}
           </h3>
           <p className="text-white-50 small mb-0 mt-1">
-            {view === 'register' ? "Create your faculty account" : view === 'forgot' ? "Reset your password" : "Sign in to your account"}
+            {view === 'register'
+              ? "Create your faculty account"
+              : view === 'forgot'
+                ? "Reset your password"
+                : view === '2fa'
+                  ? "Two-Factor Security Verification"
+                  : "Sign in to your account"}
           </p>
         </div>
 
@@ -240,6 +323,70 @@ function Login({ onLogin }) {
           {error && <div className="alert alert-danger py-2 border-0 shadow-sm"><i className="bi bi-exclamation-triangle-fill me-2"></i>{error}</div>}
           {successMsg && <div className="alert alert-success py-2 border-0 shadow-sm"><i className="bi bi-check-circle-fill me-2"></i>{successMsg}</div>}
 
+          {view === '2fa' ? (
+            <form onSubmit={handleVerify2FA}>
+              <div className="text-center mb-4">
+                <div
+                  className="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                  style={{ width: '56px', height: '56px', backgroundColor: 'rgba(41, 176, 90, 0.15)', color: '#4ade80' }}
+                >
+                  <i className="bi bi-envelope-lock-fill fs-3"></i>
+                </div>
+                <p className="text-white-50 small mb-1">
+                  Enter the 6-digit verification code sent to
+                </p>
+                <p className="text-white fw-bold mb-0">{twoFactorData.maskedEmail}</p>
+                {twoFactorData.deliveryMode === 'console' && (
+                  <small className="text-warning d-block mt-2">
+                    <i className="bi bi-terminal me-1"></i>Local Dev Mode: check the backend server terminal for your 6-digit code.
+                  </small>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label small fw-bold text-white-50 text-uppercase">6-Digit Verification Code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  className="form-control glass-input text-center fw-bold font-monospace py-2"
+                  style={{ letterSpacing: '0.45em', fontSize: '1.4rem' }}
+                  placeholder="000000"
+                  value={twoFactorData.code}
+                  onChange={(e) =>
+                    setTwoFactorData((prev) => ({
+                      ...prev,
+                      code: e.target.value.replace(/\D/g, '').slice(0, 6)
+                    }))
+                  }
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isVerifying2FA || twoFactorData.code.length !== 6}
+                className="btn btn-primary w-100 fw-bold py-2 shadow-sm fs-5 mt-2"
+              >
+                {isVerifying2FA ? (
+                  <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Verifying...</>
+                ) : (
+                  <><i className="bi bi-shield-check me-2"></i>Verify & Sign In</>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResend2FA}
+                disabled={isResending2FA}
+                className="btn glass-btn-outline w-100 fw-semibold py-2 shadow-sm mt-2"
+              >
+                {isResending2FA ? 'Sending new code...' : 'Resend 6-Digit Code'}
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit}>
             {/* 1. AI SCANNER - ONLY ON REGISTER */}
             {view === 'register' && (
@@ -377,12 +524,13 @@ function Login({ onLogin }) {
                 {isBiometricLogin ? (
                   <><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Authenticating...</>
                 ) : (
-                  <><i className="bi bi-fingerprint me-2"></i>Login with Biometrics</>
+                  <><i className="bi bi-key-fill me-2"></i>Sign in with a Passkey</>
                 )}
               </button>
             )}
 
           </form>
+          )}
 
           {/* Navigation Toggles */}
           <div className="mt-4 text-center">

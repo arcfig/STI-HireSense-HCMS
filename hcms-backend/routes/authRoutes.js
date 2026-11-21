@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { SignJWT } = require('jose');
@@ -10,6 +11,7 @@ const {
 } = require('@simplewebauthn/server');
 const { verifyToken } = require('../middleware/authMiddleware');
 const { auditLogger, recordAuditEvent } = require('../middleware/auditLogger');
+const { maskEmail, sendTwoFactorOtp } = require('../services/emailService');
 const router = express.Router();
 
 const rpName = 'STI Human Capital System';
@@ -17,8 +19,85 @@ const rpName = 'STI Human Capital System';
 const rpID = process.env.WEBAUTHN_RP_ID || 'localhost';
 const origin = process.env.WEBAUTHN_ORIGIN || 'http://localhost:5173';
 
+function resolveWebAuthnConfig(req) {
+  const reqOrigin = req.get('origin') || origin;
+  try {
+    const parsed = new URL(reqOrigin);
+    const hostname = parsed.hostname.replace(/^www\./i, '');
+    return {
+      rpID: hostname || rpID,
+      expectedOrigin: reqOrigin
+    };
+  } catch {
+    return {
+      rpID,
+      expectedOrigin: reqOrigin
+    };
+  }
+}
+
 // Initialize the secret key for token signing
 const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'STI_Super_Secret_Key_2026');
+
+const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
+function generateOtpCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+async function findAuthenticatedUser(req) {
+  const rawId = req.user?.id || req.user?._id;
+  if (typeof rawId === 'string' && /^[a-f\d]{24}$/i.test(rawId)) {
+    const byId = await User.findById(rawId);
+    if (byId) return byId;
+  }
+  const username = req.user?.username || req.body?.username;
+  if (username) {
+    return User.findOne({ username });
+  }
+  return null;
+}
+
+function serializeUser(user) {
+  return {
+    _id: user._id,
+    name: user.name,
+    username: user.username,
+    role: user.role,
+    department: user.department || '',
+    email: user.email || '',
+    phoneNumber: user.phoneNumber || '',
+    twoFactorEnabled: Boolean(user.twoFactorEnabled)
+  };
+}
+
+function serializePasskeys(user) {
+  return (user.webAuthnCredentials || []).map((cred, index) => ({
+    id: cred.credentialID,
+    deviceName: cred.deviceName || `Passkey #${index + 1}`,
+    createdAt: cred.createdAt || user.updatedAt || user.createdAt || null,
+    lastUsedAt: cred.lastUsedAt || null
+  }));
+}
+
+function detectDeviceName(userAgent = '') {
+  const ua = String(userAgent);
+  let os = 'Device';
+  if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+  else if (/Macintosh|Mac OS X/i.test(ua)) os = 'Mac';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+
+  let browser = '';
+  if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/OPR\//i.test(ua)) browser = 'Opera';
+  else if (/Chrome\//i.test(ua)) browser = 'Chrome / Brave';
+  else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+  else if (/Safari\//i.test(ua)) browser = 'Safari';
+
+  return browser ? `${os} Passkey (${browser})` : `${os} Passkey`;
+}
 
 // const seedDatabase = async () => {
 //   const count = await User.countDocuments();
@@ -88,9 +167,41 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: "Invalid username or password" });
     }
 
-    // 4. Generate the JSON Web Token
+    // 4. If Email Two-Factor Authentication (2FA) is enabled, issue a 6-digit OTP instead of a JWT
+    if (user.twoFactorEnabled && user.email) {
+      const otpCode = generateOtpCode();
+      user.twoFactorCodeHash = await bcrypt.hash(otpCode, 10);
+      user.twoFactorCodeExpires = new Date(Date.now() + OTP_EXPIRY_MS);
+      user.twoFactorPurpose = 'login';
+      await user.save();
+
+      const delivery = await sendTwoFactorOtp({
+        toEmail: user.email,
+        recipientName: user.name,
+        otpCode,
+        purpose: 'login'
+      });
+
+      recordAuditEvent(req, res, {
+        userId: user._id,
+        username: user.username,
+        userRole: user.role,
+        actionType: 'LOGIN',
+        targetResource: '/api/auth/login [2fa-challenge-sent]'
+      });
+
+      return res.status(200).json({
+        requiresTwoFactor: true,
+        username: user.username,
+        maskedEmail: maskEmail(user.email),
+        deliveryMode: delivery.deliveryMode,
+        message: `A 6-digit verification code has been sent to ${maskEmail(user.email)}.`
+      });
+    }
+
+    // 5. Generate the JSON Web Token
     const token = await new SignJWT({
-      id: user._id,
+      id: user._id.toString(),
       username: user.username,
       role: user.role
     })
@@ -99,23 +210,224 @@ router.post('/login', async (req, res) => {
       .setExpirationTime('24h') // Token expires in 24 hours
       .sign(secret);
 
-    // 5. Success Response (record sign-in for admins and all roles)
+    // 6. Success Response (record sign-in for admins and all roles)
     recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/login [method:password]' });
     res.status(200).json({
       message: "Login successful",
       token: token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        username: user.username,
-        role: user.role,
-        department: user.department || ''
-      }
+      user: serializeUser(user)
     });
 
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ error: "Internal server error during authentication." });
+  }
+});
+
+// --- ROUTE: VERIFY 2FA CODE DURING LOGIN ---
+router.post('/login/verify-2fa', async (req, res) => {
+  try {
+    const { username, code } = req.body;
+    const sanitizedCode = String(code || '').trim();
+
+    if (!username || !/^\d{6}$/.test(sanitizedCode)) {
+      return res.status(400).json({ error: "Please enter a valid 6-digit verification code." });
+    }
+
+    const user = await User.findOne({ username });
+    if (!user || user.isArchived) {
+      return res.status(401).json({ error: "Invalid verification request." });
+    }
+
+    if (
+      user.twoFactorPurpose !== 'login' ||
+      !user.twoFactorCodeHash ||
+      !user.twoFactorCodeExpires ||
+      user.twoFactorCodeExpires.getTime() < Date.now()
+    ) {
+      return res.status(400).json({ error: "Verification code has expired. Please request a new code." });
+    }
+
+    const isCodeValid = await bcrypt.compare(sanitizedCode, user.twoFactorCodeHash);
+    if (!isCodeValid) {
+      recordAuditEvent(req, res, {
+        userId: user._id,
+        username: user.username,
+        userRole: user.role,
+        actionType: 'LOGIN',
+        targetResource: '/api/auth/login/verify-2fa [invalid-otp]'
+      });
+      return res.status(401).json({ error: "Incorrect 6-digit verification code." });
+    }
+
+    user.twoFactorCodeHash = null;
+    user.twoFactorCodeExpires = null;
+    user.twoFactorPurpose = null;
+    await user.save();
+
+    const token = await new SignJWT({
+      id: user._id.toString(),
+      username: user.username,
+      role: user.role,
+      amr: ['pwd', 'otp']
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('24h')
+      .sign(secret);
+
+    recordAuditEvent(req, res, {
+      userId: user._id,
+      username: user.username,
+      userRole: user.role,
+      actionType: 'LOGIN',
+      targetResource: '/api/auth/login/verify-2fa [method:password+email-otp]'
+    });
+
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      user: serializeUser(user)
+    });
+  } catch (error) {
+    console.error("2FA Login Verify Error:", error);
+    res.status(500).json({ error: "Internal server error during 2FA verification." });
+  }
+});
+
+// --- ROUTE: RESEND 2FA CODE DURING LOGIN ---
+router.post('/login/resend-2fa', async (req, res) => {
+  try {
+    const { username } = req.body;
+    const user = await User.findOne({ username });
+    if (!user || user.isArchived || !user.twoFactorEnabled || !user.email) {
+      return res.status(400).json({ error: "Unable to resend verification code." });
+    }
+
+    const otpCode = generateOtpCode();
+    user.twoFactorCodeHash = await bcrypt.hash(otpCode, 10);
+    user.twoFactorCodeExpires = new Date(Date.now() + OTP_EXPIRY_MS);
+    user.twoFactorPurpose = 'login';
+    await user.save();
+
+    const delivery = await sendTwoFactorOtp({
+      toEmail: user.email,
+      recipientName: user.name,
+      otpCode,
+      purpose: 'login'
+    });
+
+    res.status(200).json({
+      maskedEmail: maskEmail(user.email),
+      deliveryMode: delivery.deliveryMode,
+      message: `A new 6-digit verification code was sent to ${maskEmail(user.email)}.`
+    });
+  } catch (error) {
+    console.error("2FA Resend Error:", error);
+    res.status(500).json({ error: "Failed to resend verification code." });
+  }
+});
+
+// --- ROUTE: SEND 2FA SETUP VERIFICATION CODE (From My Profile) ---
+router.post('/2fa/send-setup-code', verifyToken, async (req, res) => {
+  try {
+    const user = await findAuthenticatedUser(req);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const candidateEmail = (req.body.email !== undefined ? req.body.email : user.email || '').trim();
+    if (!candidateEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidateEmail)) {
+      return res.status(400).json({ error: "Please provide a valid Email Address (For 2FA) before enabling Two-Factor Authentication." });
+    }
+
+    user.email = candidateEmail;
+    const otpCode = generateOtpCode();
+    user.twoFactorCodeHash = await bcrypt.hash(otpCode, 10);
+    user.twoFactorCodeExpires = new Date(Date.now() + OTP_EXPIRY_MS);
+    user.twoFactorPurpose = 'enable';
+    await user.save();
+
+    const delivery = await sendTwoFactorOtp({
+      toEmail: user.email,
+      recipientName: user.name,
+      otpCode,
+      purpose: 'enable'
+    });
+
+    res.status(200).json({
+      maskedEmail: maskEmail(user.email),
+      deliveryMode: delivery.deliveryMode,
+      user: serializeUser(user),
+      message: `Verification code sent to ${maskEmail(user.email)}. Enter the 6-digit code below to activate 2FA.`
+    });
+  } catch (error) {
+    console.error("2FA Setup Code Error:", error);
+    res.status(500).json({ error: "Failed to send 2FA verification code." });
+  }
+});
+
+// --- ROUTE: VERIFY & ENABLE 2FA (From My Profile) ---
+router.post('/2fa/verify-setup', verifyToken, auditLogger(), async (req, res) => {
+  try {
+    const sanitizedCode = String(req.body.code || '').trim();
+
+    if (!/^\d{6}$/.test(sanitizedCode)) {
+      return res.status(400).json({ error: "Please enter a valid 6-digit verification code." });
+    }
+
+    const user = await findAuthenticatedUser(req);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    if (
+      user.twoFactorPurpose !== 'enable' ||
+      !user.twoFactorCodeHash ||
+      !user.twoFactorCodeExpires ||
+      user.twoFactorCodeExpires.getTime() < Date.now()
+    ) {
+      return res.status(400).json({ error: "Verification code has expired. Please request a new code." });
+    }
+
+    const isCodeValid = await bcrypt.compare(sanitizedCode, user.twoFactorCodeHash);
+    if (!isCodeValid) {
+      return res.status(401).json({ error: "Incorrect 6-digit verification code." });
+    }
+
+    user.twoFactorEnabled = true;
+    user.twoFactorCodeHash = null;
+    user.twoFactorCodeExpires = null;
+    user.twoFactorPurpose = null;
+    await user.save();
+
+    res.status(200).json({
+      twoFactorEnabled: true,
+      user: serializeUser(user),
+      message: "Email Two-Factor Authentication is now enabled!"
+    });
+  } catch (error) {
+    console.error("2FA Enable Verify Error:", error);
+    res.status(500).json({ error: "Failed to verify 2FA setup code." });
+  }
+});
+
+// --- ROUTE: DISABLE 2FA (From My Profile) ---
+router.post('/2fa/disable', verifyToken, auditLogger(), async (req, res) => {
+  try {
+    const user = await findAuthenticatedUser(req);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    user.twoFactorEnabled = false;
+    user.twoFactorCodeHash = null;
+    user.twoFactorCodeExpires = null;
+    user.twoFactorPurpose = null;
+    await user.save();
+
+    res.status(200).json({
+      twoFactorEnabled: false,
+      user: serializeUser(user),
+      message: "Email Two-Factor Authentication has been disabled."
+    });
+  } catch (error) {
+    console.error("2FA Disable Error:", error);
+    res.status(500).json({ error: "Failed to disable Two-Factor Authentication." });
   }
 });
 
@@ -149,6 +461,52 @@ router.post('/forgot-password', async (req, res) => {
   res.status(403).json({ error: "Password reset is currently disabled for security reasons. Please contact the system administrator." });
 });
 
+// --- WEBAUTHN / PASSKEY DEVICE MANAGEMENT ---
+router.get('/webauthn/credentials', verifyToken, async (req, res) => {
+  try {
+    const user = await findAuthenticatedUser(req);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.status(200).json({
+      credentials: serializePasskeys(user),
+      twoFactorEnabled: Boolean(user.twoFactorEnabled),
+      email: user.email || '',
+      phoneNumber: user.phoneNumber || ''
+    });
+  } catch (error) {
+    console.error("Fetch Passkeys Error:", error);
+    res.status(500).json({ error: "Failed to load registered passkeys." });
+  }
+});
+
+router.delete('/webauthn/credentials/:credentialId', verifyToken, auditLogger(), async (req, res) => {
+  try {
+    const targetCredId = decodeURIComponent(req.params.credentialId);
+
+    const user = await findAuthenticatedUser(req);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const initialCount = user.webAuthnCredentials.length;
+    user.webAuthnCredentials = user.webAuthnCredentials.filter(
+      (cred) => cred.credentialID !== targetCredId
+    );
+
+    if (user.webAuthnCredentials.length === initialCount) {
+      return res.status(404).json({ error: "Passkey not found." });
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Passkey removed successfully.",
+      credentials: serializePasskeys(user)
+    });
+  } catch (error) {
+    console.error("Delete Passkey Error:", error);
+    res.status(500).json({ error: "Failed to remove passkey." });
+  }
+});
+
 // --- WEBAUTHN REGISTRATION ---
 router.post('/webauthn/register/generate-options', verifyToken, async (req, res) => {
   const { username } = req.body;
@@ -158,10 +516,11 @@ router.post('/webauthn/register/generate-options', verifyToken, async (req, res)
 
     // userID must be a Uint8Array
     const userID = new Uint8Array(Buffer.from(user._id.toString(), 'utf8'));
+    const { rpID: activeRpID } = resolveWebAuthnConfig(req);
 
     const options = await generateRegistrationOptions({
       rpName,
-      rpID,
+      rpID: activeRpID,
       userID,
       userName: user.username,
       attestationType: 'none',
@@ -187,18 +546,19 @@ router.post('/webauthn/register/generate-options', verifyToken, async (req, res)
 });
 
 router.post('/webauthn/register/verify', verifyToken, auditLogger(), async (req, res) => {
-  const { username, response } = req.body;
+  const { username, response, deviceName } = req.body;
   try {
     const user = await User.findOne({ username });
     if (!user || !user.currentChallenge) return res.status(400).json({ error: "Invalid registration state" });
 
     const expectedChallenge = user.currentChallenge;
+    const { rpID: activeRpID, expectedOrigin } = resolveWebAuthnConfig(req);
 
     const verification = await verifyRegistrationResponse({
       response,
       expectedChallenge,
-      expectedOrigin: req.get('origin') || origin,
-      expectedRPID: rpID,
+      expectedOrigin,
+      expectedRPID: activeRpID,
     });
 
     if (verification.verified) {
@@ -208,16 +568,24 @@ router.post('/webauthn/register/verify', verifyToken, auditLogger(), async (req,
       const credentialID = registrationInfo.credential ? registrationInfo.credential.id : registrationInfo.credentialID;
       const credentialPublicKey = registrationInfo.credential ? registrationInfo.credential.publicKey : registrationInfo.credentialPublicKey;
       const counter = registrationInfo.credential ? registrationInfo.credential.counter : registrationInfo.counter;
+      const resolvedDeviceName = String(deviceName || '').trim() || detectDeviceName(req.get('user-agent'));
 
       user.webAuthnCredentials.push({
         credentialID: typeof credentialID === 'string' ? credentialID : Buffer.from(credentialID).toString('base64url'),
         credentialPublicKey: Buffer.from(credentialPublicKey),
         counter,
+        transports: Array.isArray(response?.response?.transports) ? response.response.transports : [],
+        deviceName: resolvedDeviceName,
+        createdAt: new Date()
       });
       user.currentChallenge = null;
       await user.save();
 
-      res.status(200).json({ verified: true, message: "Biometric device registered successfully!" });
+      res.status(200).json({
+        verified: true,
+        message: "Passkey registered successfully!",
+        credentials: serializePasskeys(user)
+      });
     } else {
       res.status(400).json({ verified: false, error: "Verification failed" });
     }
@@ -238,8 +606,10 @@ router.post('/webauthn/login/generate-options', async (req, res) => {
       return res.status(403).json({ error: "Account Archived." });
     }
 
+    const { rpID: activeRpID } = resolveWebAuthnConfig(req);
+
     const options = await generateAuthenticationOptions({
-      rpID,
+      rpID: activeRpID,
       allowCredentials: user.webAuthnCredentials.map(cred => ({
         id: cred.credentialID,
         type: 'public-key',
@@ -273,11 +643,13 @@ router.post('/webauthn/login/verify', async (req, res) => {
       return res.status(400).json({ error: "Authenticator is not registered with this site" });
     }
 
+    const { rpID: activeRpID, expectedOrigin } = resolveWebAuthnConfig(req);
+
     const verification = await verifyAuthenticationResponse({
       response,
       expectedChallenge,
-      expectedOrigin: req.get('origin') || origin,
-      expectedRPID: rpID,
+      expectedOrigin,
+      expectedRPID: activeRpID,
       credential: {
         id: authenticator.credentialID,
         publicKey: new Uint8Array(authenticator.credentialPublicKey),
@@ -289,15 +661,16 @@ router.post('/webauthn/login/verify', async (req, res) => {
     if (verification.verified) {
       const { authenticationInfo } = verification;
 
-      // Update counter
+      // Update counter & lastUsedAt timestamp
       authenticator.counter = authenticationInfo.newCounter;
+      authenticator.lastUsedAt = new Date();
       user.currentChallenge = null;
       await user.save();
 
       // Issue JWT like standard login and record biometric sign-in
       recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/webauthn/login/verify [method:webauthn]' });
       const token = await new SignJWT({
-        id: user._id,
+        id: user._id.toString(),
         username: user.username,
         role: user.role,
         amr: ['webauthn']
@@ -308,15 +681,9 @@ router.post('/webauthn/login/verify', async (req, res) => {
         .sign(secret);
 
       res.status(200).json({
-        message: "Biometric login successful",
+        message: "Passkey login successful",
         token: token,
-        user: {
-          _id: user._id,
-          name: user.name,
-          username: user.username,
-          role: user.role,
-          department: user.department || ''
-        }
+        user: serializeUser(user)
       });
     } else {
       recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/webauthn/login/verify [failed]' });

@@ -12,14 +12,23 @@ const userSchema = new mongoose.Schema({
   department: { type: String, default: '' },
   skillRatings: { type: Object, default: {} },
   
-  // WebAuthn Fields
+  // WebAuthn / Passkey Fields
   webAuthnCredentials: [{
     credentialID: { type: String, required: true },
     credentialPublicKey: { type: Buffer, required: true },
     counter: { type: Number, required: true, default: 0 },
-    transports: { type: [String], default: [] }
+    transports: { type: [String], default: [] },
+    deviceName: { type: String, default: 'Passkey Device' },
+    createdAt: { type: Date, default: Date.now },
+    lastUsedAt: { type: Date, default: null }
   }],
   currentChallenge: { type: String, default: null },
+
+  // Email 6-Digit OTP Two-Factor Authentication (2FA) Fields
+  twoFactorEnabled: { type: Boolean, default: false },
+  twoFactorCodeHash: { type: String, default: null },
+  twoFactorCodeExpires: { type: Date, default: null },
+  twoFactorPurpose: { type: String, default: null },
 
   // Soft-delete flag
   isArchived: { type: Boolean, default: false },
