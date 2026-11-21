@@ -2,7 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
-const { SignJWT } = require('jose');
+const { SignJWT, jwtVerify } = require('jose');
 const {
   generateRegistrationOptions,
   verifyRegistrationResponse,
@@ -104,7 +104,7 @@ function detectDeviceName(userAgent = '') {
 //   if (count === 0) {
 //     console.log("Empty database detected. Generating default accounts...");
 //     await User.create([
-//       { username: "henry.garcia", passwordHash: bcrypt.hashSync("password123", 10), role: "faculty", name: "Henry Garcia" },
+//       { username: "faculty.user", passwordHash: bcrypt.hashSync("password123", 10), role: "faculty", name: "Faculty Member" },
 //       { username: "main.admin", passwordHash: bcrypt.hashSync("admin123", 10), role: "admin", name: "System Administrator" } 
 //     ]);
 //     console.log("Default accounts created securely!");
@@ -641,9 +641,8 @@ router.delete('/webauthn/credentials/:credentialId', verifyToken, auditLogger(),
 
 // --- WEBAUTHN REGISTRATION ---
 router.post('/webauthn/register/generate-options', verifyToken, async (req, res) => {
-  const { username } = req.body;
   try {
-    const user = await User.findOne({ username });
+    const user = await findAuthenticatedUser(req);
     if (!user) return res.status(404).json({ error: "User not found" });
 
     // userID must be a Uint8Array
@@ -655,6 +654,7 @@ router.post('/webauthn/register/generate-options', verifyToken, async (req, res)
       rpID: activeRpID,
       userID,
       userName: user.username,
+      userDisplayName: user.name || user.username,
       attestationType: 'none',
       authenticatorSelection: {
         residentKey: 'preferred',
@@ -678,9 +678,9 @@ router.post('/webauthn/register/generate-options', verifyToken, async (req, res)
 });
 
 router.post('/webauthn/register/verify', verifyToken, auditLogger(), async (req, res) => {
-  const { username, response, deviceName } = req.body;
+  const { response, deviceName } = req.body;
   try {
-    const user = await User.findOne({ username });
+    const user = await findAuthenticatedUser(req);
     if (!user || !user.currentChallenge) return res.status(400).json({ error: "Invalid registration state" });
 
     const expectedChallenge = user.currentChallenge;
@@ -727,33 +727,55 @@ router.post('/webauthn/register/verify', verifyToken, auditLogger(), async (req,
   }
 });
 
-// --- WEBAUTHN LOGIN ---
+// --- WEBAUTHN LOGIN (Supports both One-Tap Username-less Discoverable Passkeys & Username-scoped Passkeys) ---
 router.post('/webauthn/login/generate-options', async (req, res) => {
-  const { username } = req.body;
+  const trimmedUsername = String(req.body?.username || '').trim();
   try {
-    const user = await User.findOne({ username });
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    if (user.isArchived) {
-      return res.status(403).json({ error: "Account Archived." });
-    }
-
     const { rpID: activeRpID } = resolveWebAuthnConfig(req);
+    let allowCredentials = undefined;
+    let user = null;
 
-    const options = await generateAuthenticationOptions({
-      rpID: activeRpID,
-      allowCredentials: user.webAuthnCredentials.map(cred => ({
+    if (trimmedUsername) {
+      user = await User.findOne({ username: trimmedUsername });
+      if (!user) return res.status(404).json({ error: "User not found" });
+      if (user.isArchived) {
+        return res.status(403).json({ error: "Account Archived." });
+      }
+      if (!user.webAuthnCredentials || user.webAuthnCredentials.length === 0) {
+        return res.status(400).json({ error: "No passkeys are registered for this username." });
+      }
+      allowCredentials = user.webAuthnCredentials.map(cred => ({
         id: cred.credentialID,
         type: 'public-key',
         transports: cred.transports,
-      })),
+      }));
+    }
+
+    const options = await generateAuthenticationOptions({
+      rpID: activeRpID,
+      ...(allowCredentials ? { allowCredentials } : {}),
       userVerification: 'preferred',
     });
 
-    user.currentChallenge = options.challenge;
-    await user.save();
+    if (user) {
+      user.currentChallenge = options.challenge;
+      await user.save();
+    }
 
-    res.status(200).json(options);
+    // Issue a short-lived signed challenge token so One-Tap username-less passkeys can verify statelessly
+    const challengeToken = await new SignJWT({
+      challenge: options.challenge,
+      purpose: 'webauthn-login'
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .sign(secret);
+
+    res.status(200).json({
+      ...options,
+      challengeToken
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to generate authentication options" });
@@ -761,18 +783,50 @@ router.post('/webauthn/login/generate-options', async (req, res) => {
 });
 
 router.post('/webauthn/login/verify', async (req, res) => {
-  const { username, response } = req.body;
+  const { username, response, challengeToken } = req.body;
   try {
-    const user = await User.findOne({ username });
-    if (!user || !user.currentChallenge) return res.status(400).json({ error: "Invalid login state" });
+    const credIDBase64Url = response?.id;
+    if (!credIDBase64Url) {
+      return res.status(400).json({ error: "Missing passkey credential ID." });
+    }
 
-    const expectedChallenge = user.currentChallenge;
-    const credIDBase64Url = response.id;
+    // Resolve user either by the returned credentialID (One-Tap username-less) or by username
+    let user = await User.findOne({ 'webAuthnCredentials.credentialID': credIDBase64Url });
+    if (!user && username) {
+      user = await User.findOne({ username: String(username).trim() });
+    }
+
+    if (!user) {
+      return res.status(400).json({ error: "This passkey is not registered with any account on this site." });
+    }
+
+    if (user.isArchived) {
+      recordAuditEvent(req, res, { userId: user._id, username: user.username, userRole: user.role, actionType: 'LOGIN', targetResource: '/api/auth/webauthn/login/verify [archived-blocked]' });
+      return res.status(403).json({
+        error: "Account Archived: This account has been disabled. Please contact the system administrator for restoration."
+      });
+    }
+
+    let expectedChallenge = user.currentChallenge;
+    if (challengeToken) {
+      try {
+        const { payload } = await jwtVerify(challengeToken, secret);
+        if (payload?.purpose === 'webauthn-login' && payload?.challenge) {
+          expectedChallenge = payload.challenge;
+        }
+      } catch {
+        // Fallback to user.currentChallenge if token expired or invalid
+      }
+    }
+
+    if (!expectedChallenge) {
+      return res.status(400).json({ error: "Passkey login session expired. Please try again." });
+    }
 
     // Find the requested credential
     const authenticator = user.webAuthnCredentials.find(cred => cred.credentialID === credIDBase64Url);
     if (!authenticator) {
-      return res.status(400).json({ error: "Authenticator is not registered with this site" });
+      return res.status(400).json({ error: "Authenticator is not registered with this account." });
     }
 
     const { rpID: activeRpID, expectedOrigin } = resolveWebAuthnConfig(req);

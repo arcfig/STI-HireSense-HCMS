@@ -182,26 +182,26 @@ function Login({ onLogin }) {
   };
 
   const handleBiometricLogin = async () => {
-    if (!credentials.username) {
-      setError("Please enter your System Username first.");
-      return;
-    }
-
     setError('');
+    setSuccessMsg('');
     setIsBiometricLogin(true);
 
+    const trimmedUsername = credentials.username.trim();
+
     try {
-      // 1. Get options
+      // 1. Get options (works both with a typed username and username-less One-Tap discoverable passkeys)
       const optRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/login/generate-options`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: credentials.username })
+        body: JSON.stringify({ username: trimmedUsername })
       });
-      const options = await optRes.json();
+      const optionsPayload = await optRes.json();
 
       if (!optRes.ok) {
-        throw new Error(options.error || 'Failed to get authentication options.');
+        throw new Error(optionsPayload.error || 'Failed to get authentication options.');
       }
+
+      const { challengeToken, ...options } = optionsPayload;
 
       // 2. Call WebAuthn API
       let asseResp;
@@ -218,7 +218,11 @@ function Login({ onLogin }) {
       const verifyRes = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/auth/webauthn/login/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: credentials.username, response: asseResp })
+        body: JSON.stringify({
+          username: trimmedUsername,
+          response: asseResp,
+          challengeToken
+        })
       });
 
       const data = await verifyRes.json();
@@ -505,7 +509,7 @@ function Login({ onLogin }) {
                   <input
                     type="text"
                     className="form-control glass-input"
-                    placeholder="e.g., henry.garcia or faculty@sti.edu"
+                    placeholder="e.g., faculty.user or faculty@sti.edu"
                     value={forgotData.identifier}
                     onChange={(e) => setForgotData((prev) => ({ ...prev, identifier: e.target.value }))}
                     autoFocus
